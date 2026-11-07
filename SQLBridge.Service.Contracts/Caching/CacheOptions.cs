@@ -1,4 +1,4 @@
-namespace SQLBridge.Model.Caching {
+namespace SQLBridge.Service.Contracts.Caching {
     public sealed class CacheOptions {
         /// <summary>
         /// Enable or disable the query cache globally. Default: true when cache is registered.

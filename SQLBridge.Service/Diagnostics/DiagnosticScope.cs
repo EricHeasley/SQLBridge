@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using SQLBridge.Model.Diagnostics;
+using SQLBridge.Service.Contracts.Diagnostics;
 
 namespace SQLBridge.Service.Diagnostics {
     /// <summary>

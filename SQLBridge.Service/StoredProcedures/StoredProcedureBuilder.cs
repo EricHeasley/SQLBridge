@@ -1,10 +1,9 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
-using SQLBridge.Model.Configuration;
-using SQLBridge.Model.StoredProcedures;
+using SQLBridge.Service.Contracts.Configuration;
+using SQLBridge.Service.Contracts.StoredProcedures;
 using SQLBridge.Service.Contracts.Core;
 using SQLBridge.Service.Contracts.Mapping;
-using SQLBridge.Service.Contracts.StoredProcedures;
 using SQLBridge.Service.Mapping;
 using SQLBridge.Service.Resilience;
 

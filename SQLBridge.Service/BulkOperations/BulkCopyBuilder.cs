@@ -1,7 +1,7 @@
 using System.Data;
 using System.Reflection;
 using Microsoft.Data.SqlClient;
-using SQLBridge.Model.Mapping;
+using SQLBridge.Service.Contracts.Mapping;
 using SQLBridge.Service.Contracts.BulkOperations;
 using SQLBridge.Service.Contracts.Core;
 using SQLBridge.Service.Resilience;

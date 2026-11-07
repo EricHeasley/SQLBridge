@@ -1,5 +1,4 @@
 <Solution>
-  <Project Path="SQLBridge.Model/SQLBridge.Model.csproj" />
   <Project Path="SQLBridge.Service.Contracts/SQLBridge.Service.Contracts.csproj" />
   <Project Path="SQLBridge.Service/SQLBridge.Service.csproj" />
 </Solution>

@@ -1,8 +1,7 @@
-using SQLBridge.Model.StoredProcedures;
+using SQLBridge.Service.Contracts.StoredProcedures;
 using SQLBridge.Service.Contracts.BulkOperations;
 using SQLBridge.Service.Contracts.Caching;
 using SQLBridge.Service.Contracts.Pool;
-using SQLBridge.Service.Contracts.StoredProcedures;
 using SQLBridge.Service.Contracts.Transactions;
 
 namespace SQLBridge.Service.Contracts.Core {

@@ -1,6 +1,6 @@
 using Microsoft.Data.SqlClient;
 
-namespace SQLBridge.Model.Interceptors {
+namespace SQLBridge.Service.Contracts.Interceptors {
     /// <summary>
     /// Context object passed through the interceptor pipeline.
     /// Provides access to the command, timing, results, and a property bag for passing data between interceptors.

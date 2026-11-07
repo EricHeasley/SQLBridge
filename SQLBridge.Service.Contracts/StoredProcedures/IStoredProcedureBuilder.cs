@@ -1,5 +1,4 @@
 using System.Data;
-using SQLBridge.Model.StoredProcedures;
 using SQLBridge.Service.Contracts.Mapping;
 
 namespace SQLBridge.Service.Contracts.StoredProcedures {

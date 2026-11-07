@@ -1,8 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
-using SQLBridge.Model.Configuration;
-using SQLBridge.Model.Pool;
+using SQLBridge.Service.Contracts.Configuration;
 using SQLBridge.Service.Contracts.Pool;
 
 namespace SQLBridge.Service.Pool {

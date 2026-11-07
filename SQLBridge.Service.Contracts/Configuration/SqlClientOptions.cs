@@ -1,6 +1,6 @@
-using SQLBridge.Model.Diagnostics;
+using SQLBridge.Service.Contracts.Diagnostics;
 
-namespace SQLBridge.Model.Configuration {
+namespace SQLBridge.Service.Contracts.Configuration {
     public sealed class SqlClientOptions {
         public string ConnectionString { get; set; } = string.Empty;
         public int DefaultCommandTimeout { get; set; } = 30;

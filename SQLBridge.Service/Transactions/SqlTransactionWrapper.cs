@@ -1,6 +1,6 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
-using SQLBridge.Model.Configuration;
+using SQLBridge.Service.Contracts.Configuration;
 using SQLBridge.Service.Contracts.StoredProcedures;
 using SQLBridge.Service.Contracts.Transactions;
 using SQLBridge.Service.Core;

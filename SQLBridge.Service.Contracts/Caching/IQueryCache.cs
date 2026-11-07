@@ -1,4 +1,3 @@
-using SQLBridge.Model.Caching;
 
 namespace SQLBridge.Service.Contracts.Caching {
     public interface IQueryCache {

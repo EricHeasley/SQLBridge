@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
-using SQLBridge.Model.Interceptors;
 using SQLBridge.Service.Contracts.Interceptors;
 
 namespace SQLBridge.Service.Interceptors {

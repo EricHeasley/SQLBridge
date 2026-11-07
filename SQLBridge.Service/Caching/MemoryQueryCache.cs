@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using SQLBridge.Model.Caching;
 using SQLBridge.Service.Contracts.Caching;
 
 namespace SQLBridge.Service.Caching {

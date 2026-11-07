@@ -1,5 +1,4 @@
 using Microsoft.Data.SqlClient;
-using SQLBridge.Model.Interceptors;
 
 namespace SQLBridge.Service.Contracts.Interceptors {
     /// <summary>

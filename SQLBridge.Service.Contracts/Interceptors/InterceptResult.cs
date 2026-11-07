@@ -1,6 +1,6 @@
 using Microsoft.Data.SqlClient;
 
-namespace SQLBridge.Model.Interceptors {
+namespace SQLBridge.Service.Contracts.Interceptors {
     /// <summary>
     /// Returned from BeforeExecuteAsync to short-circuit execution.
     /// The pipeline will skip the database call and use this result instead.

@@ -1,4 +1,3 @@
-using SQLBridge.Model.Interceptors;
 using SQLBridge.Service.Contracts.Interceptors;
 
 namespace SQLBridge.Service.Interceptors {

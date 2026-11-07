@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Linq.Expressions;
 using System.Reflection;
-using SQLBridge.Model.Mapping;
 using SQLBridge.Service.Contracts.Mapping;
 
 namespace SQLBridge.Service.Mapping {

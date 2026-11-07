@@ -1,10 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using SQLBridge.Model.Caching;
-using SQLBridge.Model.Configuration;
-using SQLBridge.Service.Caching;
 using SQLBridge.Service.Contracts.Caching;
+using SQLBridge.Service.Contracts.Configuration;
+using SQLBridge.Service.Caching;
 using SQLBridge.Service.Contracts.Core;
 using SQLBridge.Service.Contracts.Interceptors;
 using SQLBridge.Service.Contracts.Pool;

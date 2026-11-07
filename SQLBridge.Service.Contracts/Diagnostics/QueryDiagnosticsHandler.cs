@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using SQLBridge.Model.Configuration;
+using SQLBridge.Service.Contracts.Configuration;
 
-namespace SQLBridge.Model.Diagnostics {
+namespace SQLBridge.Service.Contracts.Diagnostics {
     /// <summary>
     /// Callback for observing query execution. Register via SqlClientOptions.
     /// </summary>

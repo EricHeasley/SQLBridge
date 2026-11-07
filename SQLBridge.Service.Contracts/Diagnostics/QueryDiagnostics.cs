@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace SQLBridge.Model.Diagnostics {
+namespace SQLBridge.Service.Contracts.Diagnostics {
     public sealed class QueryDiagnostics {
         public string CommandText { get; init; } = string.Empty;
         public string CommandType { get; init; } = string.Empty;

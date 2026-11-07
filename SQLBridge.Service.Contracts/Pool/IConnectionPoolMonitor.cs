@@ -1,4 +1,3 @@
-using SQLBridge.Model.Pool;
 
 namespace SQLBridge.Service.Contracts.Pool {
     public interface IConnectionPoolMonitor {

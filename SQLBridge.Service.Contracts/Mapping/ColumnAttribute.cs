@@ -1,4 +1,4 @@
-namespace SQLBridge.Model.Mapping {
+namespace SQLBridge.Service.Contracts.Mapping {
     [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
     public sealed class ColumnAttribute : Attribute {
 

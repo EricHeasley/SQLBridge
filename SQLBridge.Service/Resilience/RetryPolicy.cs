@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using SQLBridge.Model.Configuration;
+using SQLBridge.Service.Contracts.Configuration;
 
 namespace SQLBridge.Service.Resilience {
     internal sealed class RetryPolicy {

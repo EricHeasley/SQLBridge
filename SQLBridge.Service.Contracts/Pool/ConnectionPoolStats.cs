@@ -1,4 +1,4 @@
-namespace SQLBridge.Model.Pool {
+namespace SQLBridge.Service.Contracts.Pool {
     public sealed record ConnectionPoolStats(
         int ActiveConnections,
         int IdleConnections,
