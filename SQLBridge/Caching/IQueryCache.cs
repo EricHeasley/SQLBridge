@@ -1,5 +1,9 @@
 
 namespace SQLBridge {
+    /// <summary>
+    /// The query result cache behind <see cref="ISqlClient.QueryCachedAsync{T}"/>. Use it for stats,
+    /// manual invalidation and clearing.
+    /// </summary>
     public interface IQueryCache {
 
         /// <summary>

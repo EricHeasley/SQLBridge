@@ -1,8 +1,14 @@
 namespace SQLBridge {
+    /// <summary>
+    /// Settings for <see cref="SqlBridge"/>. Bind from configuration or set in code.
+    /// </summary>
     public sealed class SqlBridgeOptions {
 
+        /// <summary>SQL Server connection string. Required.</summary>
         public string ConnectionString { get; set; } = string.Empty;
+        /// <summary>Command timeout in seconds. Default: 30.</summary>
         public int DefaultCommandTimeout { get; set; } = 30;
+        /// <summary>Retry settings for transient errors.</summary>
         public RetryOptions Retry { get; set; } = new();
 
         /// <summary>

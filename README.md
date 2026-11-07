@@ -36,9 +36,17 @@ services.AddSqlBridge(options => {
 
 `ISqlClient` and `ISqlTransaction` share the same operations (`ISqlOperations`), so code written against a client works unchanged inside a transaction.
 
-## Layout
+## Documentation
 
-Single project, `SQLBridge`, in one namespace, organised by folder: `Core`, `StoredProcedures`, `Transactions`, `BulkOperations`, `Caching`, `Pool`, `Interceptors`, `Mapping`, `Resilience`, `Diagnostics`, `Configuration`.
+| Guide | Covers |
+| --- | --- |
+| [Getting started](docs/getting-started.md) | creating a client, row types, first queries |
+| [Usage](docs/usage.md) | every operation, transactions, bulk copy, caching, health |
+| [Configuration](docs/configuration.md) | all options, `appsettings.json`, logging |
+| [Extending](docs/extending.md) | interceptors, custom mappers, diagnostics |
+| [Architecture](docs/architecture.md) | how the pieces fit |
+
+Every public type and member also has XML documentation for IntelliSense.
 
 ## Tests
 

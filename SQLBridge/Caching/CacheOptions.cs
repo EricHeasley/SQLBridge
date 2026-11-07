@@ -1,4 +1,7 @@
 namespace SQLBridge {
+    /// <summary>
+    /// Settings for the query result cache used by <see cref="ISqlClient.QueryCachedAsync{T}"/>.
+    /// </summary>
     public sealed class CacheOptions {
         /// <summary>
         /// Enable or disable the query cache globally. Default: true when cache is registered.

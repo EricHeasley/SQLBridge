@@ -1,5 +1,9 @@
 
 namespace SQLBridge {
+    /// <summary>
+    /// Observes connections opened by SQLBridge. Available as <see cref="ISqlClient.Pool"/> when
+    /// <see cref="SqlBridgeOptions.EnablePoolMonitoring"/> is true.
+    /// </summary>
     public interface IConnectionPoolMonitor {
 
         /// <summary>

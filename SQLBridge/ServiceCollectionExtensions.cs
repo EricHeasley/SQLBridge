@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace SQLBridge {
+    /// <summary>
+    /// Dependency injection registration for SQLBridge.
+    /// </summary>
     public static class ServiceCollectionExtensions {
 
         /// <summary>
