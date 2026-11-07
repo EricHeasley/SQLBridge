@@ -12,15 +12,20 @@ namespace SQLBridge {
             _logger = logger;
         }
 
-        public async Task<T> ExecuteAsync<T>(
-            Func<CancellationToken, Task<T>> action,
+        /// <summary>
+        /// Runs <paramref name="action"/> with <paramref name="state"/>, retrying transient failures.
+        /// The state is passed in so callers can hand over a named method instead of a capturing lambda.
+        /// </summary>
+        public async Task<T> ExecuteAsync<TState, T>(
+            TState state,
+            Func<TState, CancellationToken, Task<T>> action,
             CancellationToken ct = default) {
             var attempt = 0;
             while (true) {
                 try {
-                    return await action(ct);
+                    return await action(state, ct);
                 } catch (Exception ex) when (SqlTransientErrorDetector.IsTransient(ex)
-                                           && attempt < _options.MaxRetryCount) {
+                                             && attempt < _options.MaxRetryCount) {
                     attempt++;
                     var delay = CalculateDelay(attempt);
 
@@ -33,13 +38,25 @@ namespace SQLBridge {
             }
         }
 
+        public async Task<T> ExecuteAsync<T>(
+            Func<CancellationToken, Task<T>> action,
+            CancellationToken ct = default) {
+            return await ExecuteAsync(action, InvokeAsync<T>, ct);
+        }
+
         public async Task ExecuteAsync(
             Func<CancellationToken, Task> action,
             CancellationToken ct = default) {
-            await ExecuteAsync(async token => {
-                await action(token);
-                return 0;
-            }, ct);
+            await ExecuteAsync(action, InvokeAndDiscardAsync, ct);
+        }
+
+        private static async Task<T> InvokeAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken token) {
+            return await action(token);
+        }
+
+        private static async Task<int> InvokeAndDiscardAsync(Func<CancellationToken, Task> action, CancellationToken token) {
+            await action(token);
+            return 0;
         }
 
         private TimeSpan CalculateDelay(int attempt) {

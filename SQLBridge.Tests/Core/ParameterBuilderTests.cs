@@ -3,12 +3,21 @@ using Microsoft.Data.SqlClient;
 namespace SQLBridge.Tests {
     public class ParameterBuilderTests {
 
+        private static string[] Names(SqlParameter[] parameters) {
+            var names = new List<string>();
+            foreach (var parameter in parameters) {
+                names.Add(parameter.ParameterName);
+            }
+
+            return names.ToArray();
+        }
+
         [Fact]
         public void FromObject_ReadsAnonymousObjectProperties() {
             var parameters = ParameterBuilder.FromObject(new { PolicyId = 7, HolderName = "Acme" });
 
             Assert.Equal(2, parameters.Length);
-            Assert.Equal(7, parameters.Single(p => p.ParameterName == "@PolicyId").Value);
+            Assert.Equal(7, parameters[Array.IndexOf(Names(parameters), "@PolicyId")].Value);
         }
 
         [Fact]
@@ -25,8 +34,8 @@ namespace SQLBridge.Tests {
                 ["Region"] = "TX"
             });
 
-            Assert.Contains(parameters, p => p.ParameterName == "@PolicyId");
-            Assert.Contains(parameters, p => p.ParameterName == "@Region");
+            Assert.Contains("@PolicyId", Names(parameters));
+            Assert.Contains("@Region", Names(parameters));
         }
 
         [Fact]

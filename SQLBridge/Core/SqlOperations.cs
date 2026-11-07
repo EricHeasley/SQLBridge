@@ -15,11 +15,10 @@ namespace SQLBridge {
 
         protected SqlBridgeOptions Options { get; }
 
-        protected abstract Task<CommandScope> OpenAsync(string commandText, CommandType commandType,
-            object? parameters, CancellationToken ct);
+        protected abstract Task<CommandScope> OpenAsync(SqlCall call, CancellationToken ct);
 
-        protected abstract Task<T> RunAsync<T>(string commandText, CommandType commandType,
-            Func<CancellationToken, Task<T>> action, CancellationToken ct);
+        protected abstract Task<T> RunAsync<T>(SqlCall call,
+            Func<SqlCall, CancellationToken, Task<T>> operation, CancellationToken ct);
 
         public abstract IStoredProcedureBuilder StoredProcedure(string procedureName);
 
@@ -27,56 +26,28 @@ namespace SQLBridge {
 
         public async Task<IReadOnlyList<T>> QueryAsync<T>(string commandText, object? parameters = null,
             CancellationToken ct = default) where T : new() {
-            var commandType = CommandTypeResolver.Resolve(commandText);
-            return await RunAsync(commandText, commandType, async token => {
-                await using var scope = await OpenAsync(commandText, commandType, parameters, token);
-                var mapper = new ReflectionResultMapper<T>();
-                var results = new List<T>();
-
-                await using var reader = await scope.Command.ExecuteReaderAsync(token);
-                while (await reader.ReadAsync(token)) {
-                    results.Add(mapper.Map(reader));
-                }
-
-                return (IReadOnlyList<T>)results;
-            }, ct);
+            return await RunAsync(SqlCall.From(commandText, parameters), ReadRowsAsync<T>, ct);
         }
 
         public async Task<T?> QuerySingleAsync<T>(string commandText, object? parameters = null,
             CancellationToken ct = default) where T : class, new() {
-            var commandType = CommandTypeResolver.Resolve(commandText);
-            return await RunAsync(commandText, commandType, async token => {
-                await using var scope = await OpenAsync(commandText, commandType, parameters, token);
-                var mapper = new ReflectionResultMapper<T>();
-
-                await using var reader = await scope.Command.ExecuteReaderAsync(token);
-                return await reader.ReadAsync(token) ? mapper.Map(reader) : null;
-            }, ct);
+            return await RunAsync(SqlCall.From(commandText, parameters), ReadFirstRowAsync<T>, ct);
         }
 
         public async Task<int> ExecuteAsync(string commandText, object? parameters = null,
             CancellationToken ct = default) {
-            var commandType = CommandTypeResolver.Resolve(commandText);
-            return await RunAsync(commandText, commandType, async token => {
-                await using var scope = await OpenAsync(commandText, commandType, parameters, token);
-                return await scope.Command.ExecuteNonQueryAsync(token);
-            }, ct);
+            return await RunAsync(SqlCall.From(commandText, parameters), RunNonQueryAsync, ct);
         }
 
         public async Task<object?> ScalarAsync(string commandText, object? parameters = null,
             CancellationToken ct = default) {
-            var commandType = CommandTypeResolver.Resolve(commandText);
-            return await RunAsync(commandText, commandType, async token => {
-                await using var scope = await OpenAsync(commandText, commandType, parameters, token);
-                var result = await scope.Command.ExecuteScalarAsync(token);
-                return result == DBNull.Value ? null : result;
-            }, ct);
+            return await RunAsync(SqlCall.From(commandText, parameters), ReadScalarAsync, ct);
         }
 
         public async IAsyncEnumerable<T> StreamAsync<T>(string commandText, object? parameters = null,
             [EnumeratorCancellation] CancellationToken ct = default) where T : new() {
-            var commandType = CommandTypeResolver.Resolve(commandText);
-            await using var scope = await OpenAsync(commandText, commandType, parameters, ct);
+            var call = SqlCall.From(commandText, parameters);
+            await using var scope = await OpenAsync(call, ct);
 
             var mapper = new ReflectionResultMapper<T>();
             await using var reader = await scope.Command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
@@ -99,19 +70,50 @@ namespace SQLBridge {
             return await builder.ExecuteAsync<T>(ct);
         }
 
-        protected SqlCommand CreateCommand(SqlConnection connection, SqlTransaction? transaction,
-            string commandText, CommandType commandType, object? parameters) {
+        protected SqlCommand CreateCommand(SqlConnection connection, SqlTransaction? transaction, SqlCall call) {
             var command = connection.CreateCommand();
-            command.CommandText = commandText;
-            command.CommandType = commandType;
+            command.CommandText = call.CommandText;
+            command.CommandType = call.CommandType;
             command.CommandTimeout = Options.DefaultCommandTimeout;
             command.Transaction = transaction;
 
-            foreach (var parameter in ParameterBuilder.FromObject(parameters)) {
+            foreach (var parameter in ParameterBuilder.FromObject(call.Parameters)) {
                 command.Parameters.Add(parameter);
             }
 
             return command;
+        }
+
+        private async Task<IReadOnlyList<T>> ReadRowsAsync<T>(SqlCall call, CancellationToken token) where T : new() {
+            await using var scope = await OpenAsync(call, token);
+            var mapper = new ReflectionResultMapper<T>();
+            var results = new List<T>();
+
+            await using var reader = await scope.Command.ExecuteReaderAsync(token);
+            while (await reader.ReadAsync(token)) {
+                results.Add(mapper.Map(reader));
+            }
+
+            return results;
+        }
+
+        private async Task<T?> ReadFirstRowAsync<T>(SqlCall call, CancellationToken token) where T : class, new() {
+            await using var scope = await OpenAsync(call, token);
+            var mapper = new ReflectionResultMapper<T>();
+
+            await using var reader = await scope.Command.ExecuteReaderAsync(token);
+            return await reader.ReadAsync(token) ? mapper.Map(reader) : null;
+        }
+
+        private async Task<int> RunNonQueryAsync(SqlCall call, CancellationToken token) {
+            await using var scope = await OpenAsync(call, token);
+            return await scope.Command.ExecuteNonQueryAsync(token);
+        }
+
+        private async Task<object?> ReadScalarAsync(SqlCall call, CancellationToken token) {
+            await using var scope = await OpenAsync(call, token);
+            var result = await scope.Command.ExecuteScalarAsync(token);
+            return result == DBNull.Value ? null : result;
         }
 
     }

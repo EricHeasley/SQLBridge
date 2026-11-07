@@ -25,22 +25,32 @@ namespace SQLBridge {
             }
 
             var accessors = Cache.GetOrAdd(parameters.GetType(), BuildAccessors);
-            return accessors
-                .Select(a => new SqlParameter(EnsureAtPrefix(a.Name), a.GetValue(parameters) ?? DBNull.Value))
-                .ToArray();
+            var result = new List<SqlParameter>();
+            foreach (var accessor in accessors) {
+                result.Add(new SqlParameter(EnsureAtPrefix(accessor.Name), accessor.GetValue(parameters) ?? DBNull.Value));
+            }
+
+            return result.ToArray();
         }
 
         private static SqlParameter[] FromDictionary(IDictionary<string, object?> dict) {
-            return dict
-                .Select(kvp => new SqlParameter(EnsureAtPrefix(kvp.Key), kvp.Value ?? DBNull.Value))
-                .ToArray();
+            var result = new List<SqlParameter>();
+            foreach (var pair in dict) {
+                result.Add(new SqlParameter(EnsureAtPrefix(pair.Key), pair.Value ?? DBNull.Value));
+            }
+
+            return result.ToArray();
         }
 
         private static PropertyAccessor[] BuildAccessors(Type type) {
-            return type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.CanRead)
-                .Select(p => new PropertyAccessor(p.Name, p.GetValue))
-                .ToArray();
+            var accessors = new List<PropertyAccessor>();
+            foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance)) {
+                if (property.CanRead) {
+                    accessors.Add(new PropertyAccessor(property.Name, property.GetValue));
+                }
+            }
+
+            return accessors.ToArray();
         }
 
         private static string EnsureAtPrefix(string name) {

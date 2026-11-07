@@ -16,6 +16,10 @@ namespace SQLBridge.Tests {
             return outputs;
         }
 
+        private static void ReadInputParameter() {
+            Capture().Get<int>("Input");
+        }
+
         [Fact]
         public void Get_ReturnsTypedValueWithOrWithoutAtPrefix() {
             var outputs = Capture();
@@ -34,7 +38,7 @@ namespace SQLBridge.Tests {
             var outputs = Capture();
 
             Assert.False(outputs.HasParameter("Input"));
-            Assert.Throws<KeyNotFoundException>(() => outputs.Get<int>("Input"));
+            Assert.Throws<KeyNotFoundException>(ReadInputParameter);
         }
 
         [Fact]

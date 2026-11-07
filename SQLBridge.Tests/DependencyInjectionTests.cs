@@ -5,13 +5,22 @@ namespace SQLBridge.Tests {
 
         private const string ConnectionString = "Server=localhost;Database=Test;Integrated Security=true;TrustServerCertificate=true";
 
-        private static ServiceProvider Build(Action<SqlBridgeOptions>? configure = null) {
+        private static ServiceProvider Build() {
             var services = new ServiceCollection();
             services.AddLogging();
-            services.AddSqlBridge(options => {
-                options.ConnectionString = ConnectionString;
-                configure?.Invoke(options);
-            });
+            services.AddSqlBridge(ConnectionString);
+            return services.BuildServiceProvider();
+        }
+
+        private static void WithPoolMonitoring(SqlBridgeOptions options) {
+            options.ConnectionString = ConnectionString;
+            options.EnablePoolMonitoring = true;
+        }
+
+        private static ServiceProvider BuildWithPoolMonitoring() {
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddSqlBridge(WithPoolMonitoring);
             return services.BuildServiceProvider();
         }
 
@@ -28,7 +37,7 @@ namespace SQLBridge.Tests {
 
         [Fact]
         public void EnablePoolMonitoring_ExposesPoolMonitor() {
-            using var provider = Build(o => o.EnablePoolMonitoring = true);
+            using var provider = BuildWithPoolMonitoring();
 
             var client = provider.GetRequiredService<ISqlClient>();
 

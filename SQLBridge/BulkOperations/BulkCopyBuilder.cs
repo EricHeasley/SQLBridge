@@ -56,34 +56,42 @@ namespace SQLBridge {
         }
 
         public async Task WriteAsync(DataTable data, CancellationToken ct = default) {
-            await RunAsync(async (bulkCopy, token) => {
-                ApplyMappings(bulkCopy, data);
-                await bulkCopy.WriteToServerAsync(data, token);
-            }, ct);
+            await RunAsync(data, WriteTableAsync, ct);
         }
 
         public async Task WriteAsync(IDataReader reader, CancellationToken ct = default) {
-            await RunAsync(async (bulkCopy, token) => {
-                foreach (var (source, dest) in _columnMappings) {
-                    bulkCopy.ColumnMappings.Add(source, dest);
-                }
-
-                await bulkCopy.WriteToServerAsync(reader, token);
-            }, ct);
+            await RunAsync(reader, WriteReaderAsync, ct);
         }
 
-        private async Task RunAsync(Func<SqlBulkCopy, CancellationToken, Task> write, CancellationToken ct) {
+        private async Task WriteTableAsync(DataTable data, SqlBulkCopy bulkCopy, CancellationToken token) {
+            ApplyMappings(bulkCopy, data);
+            await bulkCopy.WriteToServerAsync(data, token);
+        }
+
+        private async Task WriteReaderAsync(IDataReader reader, SqlBulkCopy bulkCopy, CancellationToken token) {
+            foreach (var (source, dest) in _columnMappings) {
+                bulkCopy.ColumnMappings.Add(source, dest);
+            }
+
+            await bulkCopy.WriteToServerAsync(reader, token);
+        }
+
+        private async Task RunAsync<TData>(TData data,
+            Func<TData, SqlBulkCopy, CancellationToken, Task> write, CancellationToken ct) {
             if (_transactionConnection is not null) {
                 using var transactionalCopy = CreateBulkCopy(_transactionConnection, _transaction);
-                await write(transactionalCopy, ct);
+                await write(data, transactionalCopy, ct);
                 return;
             }
 
-            await _retryPolicy.ExecuteAsync(async token => {
-                await using var connection = await _connectionFactory!.CreateOpenConnectionAsync(token);
-                using var bulkCopy = CreateBulkCopy(connection, null);
-                await write(bulkCopy, token);
-            }, ct);
+            await _retryPolicy.ExecuteAsync(new BulkRun<TData>(data, write), WriteOnNewConnectionAsync<TData>, ct);
+        }
+
+        private async Task<int> WriteOnNewConnectionAsync<TData>(BulkRun<TData> run, CancellationToken token) {
+            await using var connection = await _connectionFactory!.CreateOpenConnectionAsync(token);
+            using var bulkCopy = CreateBulkCopy(connection, null);
+            await run.Write(run.Data, bulkCopy, token);
+            return 0;
         }
 
         private SqlBulkCopy CreateBulkCopy(SqlConnection connection, SqlTransaction? transaction) {
@@ -109,9 +117,12 @@ namespace SQLBridge {
 
         private static DataTable ToDataTable<T>(IEnumerable<T> data) {
             var type = typeof(T);
-            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.CanRead && IsSimpleType(p.PropertyType))
-                .ToArray();
+            var properties = new List<PropertyInfo>();
+            foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance)) {
+                if (property.CanRead && IsSimpleType(property.PropertyType)) {
+                    properties.Add(property);
+                }
+            }
 
             var table = new DataTable();
             foreach (var prop in properties) {
@@ -126,7 +137,7 @@ namespace SQLBridge {
 
             foreach (var item in data) {
                 var row = table.NewRow();
-                for (var i = 0; i < properties.Length; i++) {
+                for (var i = 0; i < properties.Count; i++) {
                     var value = properties[i].GetValue(item);
                     row[i] = value ?? DBNull.Value;
                 }
@@ -148,6 +159,8 @@ namespace SQLBridge {
                 || underlying == typeof(Guid)
                 || underlying == typeof(byte[]);
         }
+
+        private sealed record BulkRun<TData>(TData Data, Func<TData, SqlBulkCopy, CancellationToken, Task> Write);
 
     }
 }

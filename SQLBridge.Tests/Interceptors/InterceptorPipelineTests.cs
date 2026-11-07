@@ -44,8 +44,27 @@ namespace SQLBridge.Tests {
 
         }
 
+        private sealed class ExecutionTracker {
+
+            public bool DatabaseWasCalled { get; set; }
+
+        }
+
         private static InterceptorPipeline CreatePipeline(params IQueryInterceptor[] interceptors) {
             return new InterceptorPipeline(interceptors, NullLogger<InterceptorPipeline>.Instance);
+        }
+
+        private static Task<int> ReturnOneAsync(int state, SqlCommand command, CancellationToken ct) {
+            return Task.FromResult(1);
+        }
+
+        private static Task<string> ReadFromDatabaseAsync(ExecutionTracker state, SqlCommand command, CancellationToken ct) {
+            state.DatabaseWasCalled = true;
+            return Task.FromResult("from database");
+        }
+
+        private static Task<string> FailAsync(int state, SqlCommand command, CancellationToken ct) {
+            throw new InvalidOperationException("boom");
         }
 
         [Fact]
@@ -54,8 +73,7 @@ namespace SQLBridge.Tests {
             var pipeline = CreatePipeline(new RecordingInterceptor("A", log), new RecordingInterceptor("B", log));
             using var command = new SqlCommand();
 
-            await pipeline.ExecuteAsync(command, "usp_GET_Policy", "StoredProcedure",
-                (cmd, ct) => Task.FromResult(1), CancellationToken.None);
+            await pipeline.ExecuteAsync(0, command, "usp_GET_Policy", "StoredProcedure", ReturnOneAsync, CancellationToken.None);
 
             Assert.Equal(["before:A", "before:B", "after:B", "after:A"], log);
         }
@@ -63,16 +81,14 @@ namespace SQLBridge.Tests {
         [Fact]
         public async Task ExecuteAsync_ShortCircuitSkipsTheDatabase() {
             var pipeline = CreatePipeline(new ShortCircuitInterceptor());
-            var executed = false;
+            var tracker = new ExecutionTracker();
             using var command = new SqlCommand();
 
-            var result = await pipeline.ExecuteAsync(command, "usp_GET_Policy", "StoredProcedure", (cmd, ct) => {
-                executed = true;
-                return Task.FromResult("from database");
-            }, CancellationToken.None);
+            var result = await pipeline.ExecuteAsync(tracker, command, "usp_GET_Policy", "StoredProcedure",
+                ReadFromDatabaseAsync, CancellationToken.None);
 
             Assert.Equal("cached", result);
-            Assert.False(executed);
+            Assert.False(tracker.DatabaseWasCalled);
         }
 
         [Fact]
@@ -80,8 +96,8 @@ namespace SQLBridge.Tests {
             var pipeline = CreatePipeline(new SuppressingInterceptor());
             using var command = new SqlCommand();
 
-            var result = await pipeline.ExecuteAsync<string>(command, "usp_GET_Policy", "StoredProcedure",
-                (cmd, ct) => throw new InvalidOperationException("boom"), CancellationToken.None);
+            var result = await pipeline.ExecuteAsync(0, command, "usp_GET_Policy", "StoredProcedure",
+                FailAsync, CancellationToken.None);
 
             Assert.Equal("fallback", result);
         }
@@ -90,10 +106,16 @@ namespace SQLBridge.Tests {
         public async Task ExecuteAsync_ErrorPropagatesWhenNotSuppressed() {
             var pipeline = CreatePipeline(new RecordingInterceptor("A", new List<string>()));
             using var command = new SqlCommand();
+            InvalidOperationException? caught = null;
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => pipeline.ExecuteAsync<string>(
-                command, "usp_GET_Policy", "StoredProcedure",
-                (cmd, ct) => throw new InvalidOperationException("boom"), CancellationToken.None));
+            try {
+                await pipeline.ExecuteAsync(0, command, "usp_GET_Policy", "StoredProcedure",
+                    FailAsync, CancellationToken.None);
+            } catch (InvalidOperationException ex) {
+                caught = ex;
+            }
+
+            Assert.NotNull(caught);
         }
 
     }

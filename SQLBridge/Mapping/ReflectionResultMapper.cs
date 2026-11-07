@@ -14,7 +14,7 @@ namespace SQLBridge {
         private static readonly ConcurrentDictionary<string, Func<IDataRecord, T>> CompiledMappers = new();
 
         // Cache property metadata per type (computed once per T)
-        private static readonly Lazy<PropertyMeta[]> PropertyMetadata = new(() => BuildPropertyMeta(typeof(T)));
+        private static readonly Lazy<PropertyMeta[]> PropertyMetadata = new(BuildPropertyMeta);
 
         private Func<IDataRecord, T>? _materializer;
 
@@ -25,7 +25,11 @@ namespace SQLBridge {
 
         private static Func<IDataRecord, T> GetOrCompileMaterializer(IDataRecord record) {
             var key = BuildCacheKey(record);
-            return CompiledMappers.GetOrAdd(key, _ => CompileMaterializer(record));
+            return CompiledMappers.GetOrAdd(key, CompileForKey, record);
+        }
+
+        private static Func<IDataRecord, T> CompileForKey(string key, IDataRecord record) {
+            return CompileMaterializer(record);
         }
 
         private static Func<IDataRecord, T> CompileMaterializer(IDataRecord record) {
@@ -218,20 +222,28 @@ namespace SQLBridge {
             return new string(buffer[..pos]);
         }
 
-        private static PropertyMeta[] BuildPropertyMeta(Type type) {
-            return type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.CanWrite)
-                .Select(p => {
-                    var attr = p.GetCustomAttribute<ColumnAttribute>();
-                    var name = attr?.Name ?? p.Name;
-                    return new PropertyMeta(name, p);
-                })
-                .ToArray();
+        private static PropertyMeta[] BuildPropertyMeta() {
+            var result = new List<PropertyMeta>();
+            foreach (var property in typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance)) {
+                if (!property.CanWrite) {
+                    continue;
+                }
+
+                var attribute = property.GetCustomAttribute<ColumnAttribute>();
+                result.Add(new PropertyMeta(attribute?.Name ?? property.Name, property));
+            }
+
+            return result.ToArray();
         }
 
         private static PropertyMeta? FindProperty(PropertyMeta[] properties, string columnName) {
-            return Array.Find(properties,
-                p => string.Equals(p.MappedName, columnName, StringComparison.OrdinalIgnoreCase));
+            foreach (var property in properties) {
+                if (string.Equals(property.MappedName, columnName, StringComparison.OrdinalIgnoreCase)) {
+                    return property;
+                }
+            }
+
+            return null;
         }
 
         private sealed record PropertyMeta(string MappedName, PropertyInfo Property);

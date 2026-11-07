@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.Data.SqlClient;
 
 namespace SQLBridge {
@@ -19,16 +18,15 @@ namespace SQLBridge {
             _retryPolicy = retryPolicy;
         }
 
-        protected override Task<CommandScope> OpenAsync(string commandText, CommandType commandType,
-            object? parameters, CancellationToken ct) {
-            var command = CreateCommand(_connection, _transaction, commandText, commandType, parameters);
+        protected override Task<CommandScope> OpenAsync(SqlCall call, CancellationToken ct) {
+            var command = CreateCommand(_connection, _transaction, call);
             return Task.FromResult(new CommandScope(command, null));
         }
 
         // Retrying a single statement inside a transaction is not safe, so the action runs once.
-        protected override async Task<T> RunAsync<T>(string commandText, CommandType commandType,
-            Func<CancellationToken, Task<T>> action, CancellationToken ct) {
-            return await action(ct);
+        protected override async Task<T> RunAsync<T>(SqlCall call,
+            Func<SqlCall, CancellationToken, Task<T>> operation, CancellationToken ct) {
+            return await operation(call, ct);
         }
 
         public override IStoredProcedureBuilder StoredProcedure(string procedureName) {

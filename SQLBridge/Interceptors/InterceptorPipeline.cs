@@ -21,16 +21,18 @@ namespace SQLBridge {
         public bool HasInterceptors => _interceptors.Length > 0;
 
         /// <summary>
-        /// Wraps an async operation with the full interceptor pipeline.
+        /// Wraps an async operation with the full interceptor pipeline. The state is passed through to the
+        /// operation so callers can hand over a named method instead of a capturing lambda.
         /// </summary>
-        public async Task<T> ExecuteAsync<T>(
+        public async Task<T> ExecuteAsync<TState, T>(
+            TState state,
             SqlCommand command,
             string commandText,
             string commandType,
-            Func<SqlCommand, CancellationToken, Task<T>> operation,
+            Func<TState, SqlCommand, CancellationToken, Task<T>> operation,
             CancellationToken ct) {
             if (_interceptors.Length == 0) {
-                return await operation(command, ct);
+                return await operation(state, command, ct);
             }
 
             var context = new CommandContext {
@@ -61,7 +63,7 @@ namespace SQLBridge {
             // === Execute ===
             var sw = Stopwatch.StartNew();
             try {
-                var result = await operation(context.Command, ct);
+                var result = await operation(state, context.Command, ct);
                 sw.Stop();
 
                 context.Duration = sw.Elapsed;

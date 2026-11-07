@@ -16,9 +16,10 @@ namespace SQLBridge {
         public static IServiceCollection AddSqlBridge(
             this IServiceCollection services,
             string connectionString) {
-            return services.AddSqlBridge(options => {
-                options.ConnectionString = connectionString;
-            });
+            services.AddOptions();
+            services.AddSingleton<IConfigureOptions<SqlBridgeOptions>>(new SqlBridgeConnectionStringSetup(connectionString));
+            RegisterServices(services);
+            return services;
         }
 
         /// <summary>
@@ -29,19 +30,8 @@ namespace SQLBridge {
             this IServiceCollection services,
             IConfiguration configuration,
             string sectionName = "SqlBridge") {
-            var section = configuration.GetSection(sectionName);
-            services.Configure<SqlBridgeOptions>(section);
-
-            services.PostConfigure<SqlBridgeOptions>(options => {
-                if (string.IsNullOrEmpty(options.ConnectionString)) {
-                    options.ConnectionString =
-                        configuration.GetConnectionString("DefaultConnection")
-                        ?? throw new InvalidOperationException(
-                            $"SQLBridge connection string is not configured. " +
-                            $"Set {sectionName}:ConnectionString or ConnectionStrings:DefaultConnection.");
-                }
-            });
-
+            services.AddOptions();
+            services.AddSingleton<IConfigureOptions<SqlBridgeOptions>>(new SqlBridgeConfigurationSetup(configuration, sectionName));
             RegisterServices(services);
             return services;
         }
@@ -80,10 +70,14 @@ namespace SQLBridge {
         }
 
         private static void RegisterServices(IServiceCollection services) {
-            services.TryAddSingleton<ISqlClient>(provider => new SqlBridge(
+            services.TryAddSingleton<ISqlClient>(CreateSqlBridge);
+        }
+
+        private static ISqlClient CreateSqlBridge(IServiceProvider provider) {
+            return new SqlBridge(
                 provider.GetRequiredService<IOptions<SqlBridgeOptions>>().Value,
                 provider.GetService<ILoggerFactory>(),
-                provider.GetServices<IQueryInterceptor>()));
+                provider.GetServices<IQueryInterceptor>());
         }
 
     }

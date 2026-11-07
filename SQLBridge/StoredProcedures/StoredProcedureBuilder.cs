@@ -92,101 +92,33 @@ namespace SQLBridge {
         }
 
         public async Task<IReadOnlyList<T>> QueryAsync<T>(CancellationToken ct = default) where T : new() {
-            return await _retryPolicy.ExecuteAsync(async token => {
-                await using var scope = await CreateCommandAsync(token);
-                var mapper = GetMapper<T>();
-                var results = new List<T>();
-
-                await using var reader = await scope.Command.ExecuteReaderAsync(token);
-                while (await reader.ReadAsync(token)) {
-                    results.Add(mapper.Map(reader));
-                }
-
-                return (IReadOnlyList<T>)results;
-            }, ct);
+            return await _retryPolicy.ExecuteAsync(ReadRowsAsync<T>, ct);
         }
 
         public async Task<T?> QuerySingleAsync<T>(CancellationToken ct = default) where T : class, new() {
-            return await _retryPolicy.ExecuteAsync(async token => {
-                await using var scope = await CreateCommandAsync(token);
-                var mapper = GetMapper<T>();
-
-                await using var reader = await scope.Command.ExecuteReaderAsync(token);
-                return await reader.ReadAsync(token) ? mapper.Map(reader) : null;
-            }, ct);
+            return await _retryPolicy.ExecuteAsync(ReadFirstRowAsync<T>, ct);
         }
 
         public async Task<(IReadOnlyList<T1>, IReadOnlyList<T2>)> QueryMultipleAsync<T1, T2>(
             CancellationToken ct = default) where T1 : new() where T2 : new() {
-            return await _retryPolicy.ExecuteAsync(async token => {
-                await using var scope = await CreateCommandAsync(token);
-                await using var reader = await scope.Command.ExecuteReaderAsync(token);
-
-                var list1 = await ReadResultSetAsync(reader, GetMapper<T1>(), token);
-                await reader.NextResultAsync(token);
-                var list2 = await ReadResultSetAsync(reader, GetMapper<T2>(), token);
-
-                return ((IReadOnlyList<T1>)list1, (IReadOnlyList<T2>)list2);
-            }, ct);
+            return await _retryPolicy.ExecuteAsync(ReadTwoResultSetsAsync<T1, T2>, ct);
         }
 
         public async Task<(IReadOnlyList<T1>, IReadOnlyList<T2>, IReadOnlyList<T3>)> QueryMultipleAsync<T1, T2, T3>(
             CancellationToken ct = default) where T1 : new() where T2 : new() where T3 : new() {
-            return await _retryPolicy.ExecuteAsync(async token => {
-                await using var scope = await CreateCommandAsync(token);
-                await using var reader = await scope.Command.ExecuteReaderAsync(token);
-
-                var list1 = await ReadResultSetAsync(reader, GetMapper<T1>(), token);
-                await reader.NextResultAsync(token);
-                var list2 = await ReadResultSetAsync(reader, GetMapper<T2>(), token);
-                await reader.NextResultAsync(token);
-                var list3 = await ReadResultSetAsync(reader, GetMapper<T3>(), token);
-
-                return ((IReadOnlyList<T1>)list1, (IReadOnlyList<T2>)list2, (IReadOnlyList<T3>)list3);
-            }, ct);
+            return await _retryPolicy.ExecuteAsync(ReadThreeResultSetsAsync<T1, T2, T3>, ct);
         }
 
         public async Task<StoredProcedureResult> ExecuteAsync(CancellationToken ct = default) {
-            return await _retryPolicy.ExecuteAsync(async token => {
-                await using var scope = await CreateCommandAsync(token);
-                var rows = await scope.Command.ExecuteNonQueryAsync(token);
-
-                var output = new OutputParameterCollection();
-                output.Capture(scope.Command.Parameters);
-
-                return new StoredProcedureResult { RowsAffected = rows, OutputParams = output };
-            }, ct);
+            return await _retryPolicy.ExecuteAsync(RunNonQueryAsync, ct);
         }
 
         public async Task<StoredProcedureResult<T>> ExecuteAsync<T>(CancellationToken ct = default) where T : new() {
-            return await _retryPolicy.ExecuteAsync(async token => {
-                await using var scope = await CreateCommandAsync(token);
-                var mapper = GetMapper<T>();
-                var results = new List<T>();
-                var rows = 0;
-
-                await using var reader = await scope.Command.ExecuteReaderAsync(token);
-                while (await reader.ReadAsync(token)) {
-                    results.Add(mapper.Map(reader));
-                }
-
-                // Close reader to access output params
-                await reader.CloseAsync();
-                rows = reader.RecordsAffected;
-
-                var output = new OutputParameterCollection();
-                output.Capture(scope.Command.Parameters);
-
-                return new StoredProcedureResult<T> { Data = results, RowsAffected = rows, OutputParams = output };
-            }, ct);
+            return await _retryPolicy.ExecuteAsync(RunWithResultAsync<T>, ct);
         }
 
         public async Task<object?> ScalarAsync(CancellationToken ct = default) {
-            return await _retryPolicy.ExecuteAsync(async token => {
-                await using var scope = await CreateCommandAsync(token);
-                var result = await scope.Command.ExecuteScalarAsync(token);
-                return result == DBNull.Value ? null : result;
-            }, ct);
+            return await _retryPolicy.ExecuteAsync(ReadScalarAsync, ct);
         }
 
         public async IAsyncEnumerable<T> StreamAsync<T>(
@@ -201,6 +133,95 @@ namespace SQLBridge {
             while (await reader.ReadAsync(ct)) {
                 yield return mapper.Map(reader);
             }
+        }
+
+        private async Task<IReadOnlyList<T>> ReadRowsAsync<T>(CancellationToken token) where T : new() {
+            await using var scope = await CreateCommandAsync(token);
+            var mapper = GetMapper<T>();
+            var results = new List<T>();
+
+            await using var reader = await scope.Command.ExecuteReaderAsync(token);
+            while (await reader.ReadAsync(token)) {
+                results.Add(mapper.Map(reader));
+            }
+
+            return results;
+        }
+
+        private async Task<T?> ReadFirstRowAsync<T>(CancellationToken token) where T : class, new() {
+            await using var scope = await CreateCommandAsync(token);
+            var mapper = GetMapper<T>();
+
+            await using var reader = await scope.Command.ExecuteReaderAsync(token);
+            return await reader.ReadAsync(token) ? mapper.Map(reader) : null;
+        }
+
+        private async Task<(IReadOnlyList<T1>, IReadOnlyList<T2>)> ReadTwoResultSetsAsync<T1, T2>(
+            CancellationToken token) where T1 : new() where T2 : new() {
+            await using var scope = await CreateCommandAsync(token);
+            await using var reader = await scope.Command.ExecuteReaderAsync(token);
+
+            var list1 = await ReadResultSetAsync(reader, GetMapper<T1>(), token);
+            await reader.NextResultAsync(token);
+            var list2 = await ReadResultSetAsync(reader, GetMapper<T2>(), token);
+
+            return (list1, list2);
+        }
+
+        private async Task<(IReadOnlyList<T1>, IReadOnlyList<T2>, IReadOnlyList<T3>)> ReadThreeResultSetsAsync<T1, T2, T3>(
+            CancellationToken token) where T1 : new() where T2 : new() where T3 : new() {
+            await using var scope = await CreateCommandAsync(token);
+            await using var reader = await scope.Command.ExecuteReaderAsync(token);
+
+            var list1 = await ReadResultSetAsync(reader, GetMapper<T1>(), token);
+            await reader.NextResultAsync(token);
+            var list2 = await ReadResultSetAsync(reader, GetMapper<T2>(), token);
+            await reader.NextResultAsync(token);
+            var list3 = await ReadResultSetAsync(reader, GetMapper<T3>(), token);
+
+            return (list1, list2, list3);
+        }
+
+        private async Task<StoredProcedureResult> RunNonQueryAsync(CancellationToken token) {
+            await using var scope = await CreateCommandAsync(token);
+            var rows = await scope.Command.ExecuteNonQueryAsync(token);
+
+            var output = new OutputParameterCollection();
+            output.Capture(scope.Command.Parameters);
+
+            return new StoredProcedureResult {
+                RowsAffected = rows,
+                OutputParams = output
+            };
+        }
+
+        private async Task<StoredProcedureResult<T>> RunWithResultAsync<T>(CancellationToken token) where T : new() {
+            await using var scope = await CreateCommandAsync(token);
+            var mapper = GetMapper<T>();
+            var results = new List<T>();
+
+            await using var reader = await scope.Command.ExecuteReaderAsync(token);
+            while (await reader.ReadAsync(token)) {
+                results.Add(mapper.Map(reader));
+            }
+
+            // Output parameters are only available once the reader is closed
+            await reader.CloseAsync();
+
+            var output = new OutputParameterCollection();
+            output.Capture(scope.Command.Parameters);
+
+            return new StoredProcedureResult<T> {
+                Data = results,
+                RowsAffected = reader.RecordsAffected,
+                OutputParams = output
+            };
+        }
+
+        private async Task<object?> ReadScalarAsync(CancellationToken token) {
+            await using var scope = await CreateCommandAsync(token);
+            var result = await scope.Command.ExecuteScalarAsync(token);
+            return result == DBNull.Value ? null : result;
         }
 
         private IResultMapper<T> GetMapper<T>() where T : new() {
@@ -242,7 +263,7 @@ namespace SQLBridge {
             return new CommandScope(command, ownsConnection ? connection : null);
         }
 
-        private static async Task<List<T>> ReadResultSetAsync<T>(
+        private static async Task<IReadOnlyList<T>> ReadResultSetAsync<T>(
             SqlDataReader reader, IResultMapper<T> mapper, CancellationToken ct) {
             var results = new List<T>();
             while (await reader.ReadAsync(ct)) {

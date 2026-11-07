@@ -13,6 +13,10 @@ namespace SQLBridge.Tests {
 
         }
 
+        private static void CreateWithoutConnectionString() {
+            new SqlBridge(string.Empty);
+        }
+
         [Fact]
         public void New_WithConnectionStringOnly_NeedsNoDependencyInjection() {
             using var client = new SqlBridge(ConnectionString);
@@ -23,7 +27,7 @@ namespace SQLBridge.Tests {
 
         [Fact]
         public void New_WithoutConnectionString_Throws() {
-            Assert.Throws<InvalidOperationException>(() => new SqlBridge(string.Empty));
+            Assert.Throws<InvalidOperationException>(CreateWithoutConnectionString);
         }
 
         [Fact]

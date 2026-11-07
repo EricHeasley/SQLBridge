@@ -49,73 +49,75 @@ namespace SQLBridge {
             return new BulkCopyBuilder(_connectionFactory, _retryPolicy, destinationTable);
         }
 
-        protected override async Task<CommandScope> OpenAsync(string commandText, CommandType commandType,
-            object? parameters, CancellationToken ct) {
+        protected override async Task<CommandScope> OpenAsync(SqlCall call, CancellationToken ct) {
             var connection = await _connectionFactory.CreateOpenConnectionAsync(ct);
-            var command = CreateCommand(connection, null, commandText, commandType, parameters);
+            var command = CreateCommand(connection, null, call);
             return new CommandScope(command, connection);
         }
 
-        protected override async Task<T> RunAsync<T>(string commandText, CommandType commandType,
-            Func<CancellationToken, Task<T>> action, CancellationToken ct) {
-            var commandTypeName = CommandTypeResolver.Describe(commandType);
-
+        protected override async Task<T> RunAsync<T>(SqlCall call,
+            Func<SqlCall, CancellationToken, Task<T>> operation, CancellationToken ct) {
             // Interceptors get a command to inspect before the real one runs
             if (_interceptorPipeline.HasInterceptors) {
-                return await RunWithInterceptorsAsync(commandText, commandType, commandTypeName, action, ct);
+                return await RunWithInterceptorsAsync(call, operation, ct);
             }
 
             var stopwatch = Stopwatch.StartNew();
             try {
-                var result = await _retryPolicy.ExecuteAsync(action, ct);
+                var result = await _retryPolicy.ExecuteAsync(call, operation, ct);
                 stopwatch.Stop();
 
-                LogQueryCompleted(commandText, commandTypeName, stopwatch.Elapsed);
-                RaiseDiagnostics(commandText, commandTypeName, stopwatch.Elapsed, succeeded: true);
+                LogQueryCompleted(call.CommandText, call.CommandTypeName, stopwatch.Elapsed);
+                RaiseDiagnostics(call.CommandText, call.CommandTypeName, stopwatch.Elapsed, succeeded: true);
 
                 return result;
             } catch (Exception ex) {
                 stopwatch.Stop();
-                _logger.LogError(ex, "Query failed: {CommandText} ({CommandType}) after {ElapsedMs}ms",
-                    commandText, commandTypeName, stopwatch.ElapsedMilliseconds);
-
-                RaiseDiagnostics(commandText, commandTypeName, stopwatch.Elapsed, succeeded: false, error: ex.Message);
+                LogFailure(call, ex, stopwatch.Elapsed);
                 throw;
             }
         }
 
-        private async Task<T> RunWithInterceptorsAsync<T>(
-            string commandText, CommandType commandType, string commandTypeName,
-            Func<CancellationToken, Task<T>> action, CancellationToken ct) {
+        private async Task<T> RunWithInterceptorsAsync<T>(SqlCall call,
+            Func<SqlCall, CancellationToken, Task<T>> operation, CancellationToken ct) {
             var stopwatch = Stopwatch.StartNew();
 
             // Not attached to a connection, so an interceptor can short-circuit without touching the database
-            await using var command = new SqlCommand(commandText) {
-                CommandType = commandType,
+            await using var command = new SqlCommand(call.CommandText) {
+                CommandType = call.CommandType,
                 CommandTimeout = Options.DefaultCommandTimeout
             };
 
             try {
                 var result = await _interceptorPipeline.ExecuteAsync(
+                    new PendingRun<T>(call, operation),
                     command,
-                    commandText,
-                    commandTypeName,
-                    async (cmd, token) => await _retryPolicy.ExecuteAsync(action, token),
+                    call.CommandText,
+                    call.CommandTypeName,
+                    RetryAsync,
                     ct);
 
                 stopwatch.Stop();
-                LogQueryCompleted(commandText, commandTypeName, stopwatch.Elapsed);
-                RaiseDiagnostics(commandText, commandTypeName, stopwatch.Elapsed, succeeded: true);
+                LogQueryCompleted(call.CommandText, call.CommandTypeName, stopwatch.Elapsed);
+                RaiseDiagnostics(call.CommandText, call.CommandTypeName, stopwatch.Elapsed, succeeded: true);
 
                 return result;
             } catch (Exception ex) {
                 stopwatch.Stop();
-                _logger.LogError(ex, "Query failed: {CommandText} ({CommandType}) after {ElapsedMs}ms",
-                    commandText, commandTypeName, stopwatch.ElapsedMilliseconds);
-
-                RaiseDiagnostics(commandText, commandTypeName, stopwatch.Elapsed, succeeded: false, error: ex.Message);
+                LogFailure(call, ex, stopwatch.Elapsed);
                 throw;
             }
+        }
+
+        private async Task<T> RetryAsync<T>(PendingRun<T> run, SqlCommand command, CancellationToken token) {
+            return await _retryPolicy.ExecuteAsync(run.Call, run.Operation, token);
+        }
+
+        private void LogFailure(SqlCall call, Exception exception, TimeSpan elapsed) {
+            _logger.LogError(exception, "Query failed: {CommandText} ({CommandType}) after {ElapsedMs}ms",
+                call.CommandText, call.CommandTypeName, elapsed.TotalMilliseconds);
+
+            RaiseDiagnostics(call.CommandText, call.CommandTypeName, elapsed, succeeded: false, error: exception.Message);
         }
 
         private void LogQueryCompleted(string commandText, string commandType, TimeSpan elapsed) {

@@ -26,38 +26,52 @@ namespace SQLBridge {
         /// Builds a cache key from command text and explicit SqlParameter array.
         /// </summary>
         public static string Build(string commandText, SqlParameter[] parameters) {
+            var pairs = new List<KeyValuePair<string, object?>>();
+            foreach (var parameter in parameters) {
+                pairs.Add(new KeyValuePair<string, object?>(parameter.ParameterName, parameter.Value));
+            }
+
+            pairs.Sort(CompareByName);
+
             var sb = new StringBuilder(256);
             sb.Append(commandText);
 
-            foreach (var p in parameters.OrderBy(p => p.ParameterName, StringComparer.OrdinalIgnoreCase)) {
+            foreach (var pair in pairs) {
                 sb.Append('|');
-                sb.Append(p.ParameterName);
+                sb.Append(pair.Key);
                 sb.Append('=');
-                sb.Append(p.Value ?? "NULL");
+                sb.Append(pair.Value ?? "NULL");
             }
 
             return $"{commandText.Split(' ', '.', '(')[0]}:{Hash(sb.ToString())}";
         }
 
         private static void AppendParameters(StringBuilder sb, object parameters) {
+            var pairs = new List<KeyValuePair<string, object?>>();
+
             if (parameters is IDictionary<string, object?> dict) {
-                foreach (var kvp in dict.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase)) {
-                    sb.Append(kvp.Key);
-                    sb.Append('=');
-                    sb.Append(kvp.Value ?? "NULL");
-                    sb.Append('|');
+                foreach (var pair in dict) {
+                    pairs.Add(pair);
                 }
-                return;
+            } else {
+                // Anonymous object / POCO
+                foreach (var property in parameters.GetType().GetProperties()) {
+                    pairs.Add(new KeyValuePair<string, object?>(property.Name, property.GetValue(parameters)));
+                }
             }
 
-            // Anonymous object / POCO
-            foreach (var prop in parameters.GetType().GetProperties()
-                .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)) {
-                sb.Append(prop.Name);
+            pairs.Sort(CompareByName);
+
+            foreach (var pair in pairs) {
+                sb.Append(pair.Key);
                 sb.Append('=');
-                sb.Append(prop.GetValue(parameters) ?? "NULL");
+                sb.Append(pair.Value ?? "NULL");
                 sb.Append('|');
             }
+        }
+
+        private static int CompareByName(KeyValuePair<string, object?> left, KeyValuePair<string, object?> right) {
+            return StringComparer.OrdinalIgnoreCase.Compare(left.Key, right.Key);
         }
 
         private static string Hash(string input) {
