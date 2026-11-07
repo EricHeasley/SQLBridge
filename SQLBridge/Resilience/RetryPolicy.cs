@@ -1,14 +1,13 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using SQLBridge.Configuration;
 
-namespace SQLBridge.Resilience {
+namespace SQLBridge {
     internal sealed class RetryPolicy {
 
         private readonly RetryOptions _options;
         private readonly ILogger<RetryPolicy> _logger;
 
-        public RetryPolicy(IOptions<SqlClientOptions> options, ILogger<RetryPolicy> logger) {
+        public RetryPolicy(IOptions<SqlBridgeOptions> options, ILogger<RetryPolicy> logger) {
             _options = options.Value.Retry;
             _logger = logger;
         }

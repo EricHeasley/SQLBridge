@@ -1,6 +1,6 @@
 using Microsoft.Data.SqlClient;
 
-namespace SQLBridge.StoredProcedures {
+namespace SQLBridge {
     public sealed class OutputParameterCollection {
 
         private readonly Dictionary<string, object?> _values = new(StringComparer.OrdinalIgnoreCase);

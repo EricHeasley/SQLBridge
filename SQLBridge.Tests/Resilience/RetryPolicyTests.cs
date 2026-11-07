@@ -1,13 +1,11 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using SQLBridge.Configuration;
-using SQLBridge.Resilience;
 
-namespace SQLBridge.Tests.Resilience {
+namespace SQLBridge.Tests {
     public class RetryPolicyTests {
 
         private static RetryPolicy CreatePolicy(int maxRetries) {
-            var options = Options.Create(new SqlClientOptions {
+            var options = Options.Create(new SqlBridgeOptions {
                 Retry = new RetryOptions {
                     MaxRetryCount = maxRetries,
                     InitialDelay = TimeSpan.FromMilliseconds(1),

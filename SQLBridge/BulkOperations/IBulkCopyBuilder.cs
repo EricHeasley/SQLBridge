@@ -1,6 +1,6 @@
 using System.Data;
 
-namespace SQLBridge.BulkOperations {
+namespace SQLBridge {
     public interface IBulkCopyBuilder {
 
         IBulkCopyBuilder WithTimeout(int seconds);

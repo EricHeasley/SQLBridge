@@ -1,7 +1,7 @@
 using System.Data;
 using System.Dynamic;
 
-namespace SQLBridge.Mapping {
+namespace SQLBridge {
     internal sealed class DynamicResultMapper : IResultMapper<ExpandoObject> {
 
         public ExpandoObject Map(IDataRecord record) {

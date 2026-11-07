@@ -3,7 +3,7 @@ using System.Data;
 using System.Linq.Expressions;
 using System.Reflection;
 
-namespace SQLBridge.Mapping {
+namespace SQLBridge {
     /// <summary>
     /// High-performance mapper that compiles expression trees into delegates on first use.
     /// No PropertyInfo.SetValue or Convert.ChangeType per row — everything is compiled to IL.

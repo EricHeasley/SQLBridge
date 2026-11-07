@@ -1,5 +1,5 @@
 
-namespace SQLBridge.Interceptors {
+namespace SQLBridge {
     /// <summary>
     /// Base class for interceptors. Override only the hooks you need.
     /// </summary>

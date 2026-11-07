@@ -1,7 +1,6 @@
 using System.Data;
-using SQLBridge.Mapping;
 
-namespace SQLBridge.Tests.Mapping {
+namespace SQLBridge.Tests {
     public class ReflectionResultMapperTests {
 
         private sealed class Policy {

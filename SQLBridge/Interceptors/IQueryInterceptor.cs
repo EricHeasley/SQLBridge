@@ -1,6 +1,6 @@
 using Microsoft.Data.SqlClient;
 
-namespace SQLBridge.Interceptors {
+namespace SQLBridge {
     /// <summary>
     /// Intercepts query execution at the command level. Implementations can inspect,
     /// modify, or replace commands before execution and process results after.

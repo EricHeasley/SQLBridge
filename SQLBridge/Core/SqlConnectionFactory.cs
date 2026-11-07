@@ -1,21 +1,18 @@
 using System.Diagnostics;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Options;
-using SQLBridge.Configuration;
-using SQLBridge.Pool;
 
-namespace SQLBridge.Core {
+namespace SQLBridge {
     internal sealed class SqlConnectionFactory : ISqlConnectionFactory {
 
         private readonly string _connectionString;
         private readonly ConnectionPoolMonitor? _poolMonitor;
 
-        public SqlConnectionFactory(IOptions<SqlClientOptions> options, ConnectionPoolMonitor? poolMonitor = null) {
-            _connectionString = options.Value.ConnectionString;
+        public SqlConnectionFactory(string connectionString, ConnectionPoolMonitor? poolMonitor = null) {
+            _connectionString = connectionString;
             _poolMonitor = poolMonitor;
 
             if (string.IsNullOrWhiteSpace(_connectionString)) {
-                throw new InvalidOperationException("SqlClient connection string is not configured.");
+                throw new InvalidOperationException("SQLBridge connection string is not configured.");
             }
         }
 

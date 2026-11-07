@@ -1,14 +1,13 @@
 using System.Data;
 using System.Reflection;
 using Microsoft.Data.SqlClient;
-using SQLBridge.Mapping;
-using SQLBridge.Core;
-using SQLBridge.Resilience;
 
-namespace SQLBridge.BulkOperations {
+namespace SQLBridge {
     internal sealed class BulkCopyBuilder : IBulkCopyBuilder {
 
-        private readonly ISqlConnectionFactory _connectionFactory;
+        private readonly ISqlConnectionFactory? _connectionFactory;
+        private readonly SqlConnection? _transactionConnection;
+        private readonly SqlTransaction? _transaction;
         private readonly RetryPolicy _retryPolicy;
         private readonly string _destinationTable;
         private int _timeout = 30;
@@ -20,6 +19,18 @@ namespace SQLBridge.BulkOperations {
             RetryPolicy retryPolicy,
             string destinationTable) {
             _connectionFactory = connectionFactory;
+            _retryPolicy = retryPolicy;
+            _destinationTable = destinationTable;
+        }
+
+        // Bulk copy inside a transaction: uses the transaction's connection and never retries
+        internal BulkCopyBuilder(
+            SqlConnection connection,
+            SqlTransaction transaction,
+            RetryPolicy retryPolicy,
+            string destinationTable) {
+            _transactionConnection = connection;
+            _transaction = transaction;
             _retryPolicy = retryPolicy;
             _destinationTable = destinationTable;
         }
@@ -45,34 +56,42 @@ namespace SQLBridge.BulkOperations {
         }
 
         public async Task WriteAsync(DataTable data, CancellationToken ct = default) {
-            await _retryPolicy.ExecuteAsync(async token => {
-                await using var connection = await _connectionFactory.CreateOpenConnectionAsync(token);
-                using var bulkCopy = new SqlBulkCopy(connection) {
-                    DestinationTableName = _destinationTable,
-                    BulkCopyTimeout = _timeout,
-                    BatchSize = _batchSize
-                };
-
+            await RunAsync(async (bulkCopy, token) => {
                 ApplyMappings(bulkCopy, data);
                 await bulkCopy.WriteToServerAsync(data, token);
             }, ct);
         }
 
         public async Task WriteAsync(IDataReader reader, CancellationToken ct = default) {
-            await _retryPolicy.ExecuteAsync(async token => {
-                await using var connection = await _connectionFactory.CreateOpenConnectionAsync(token);
-                using var bulkCopy = new SqlBulkCopy(connection) {
-                    DestinationTableName = _destinationTable,
-                    BulkCopyTimeout = _timeout,
-                    BatchSize = _batchSize
-                };
-
+            await RunAsync(async (bulkCopy, token) => {
                 foreach (var (source, dest) in _columnMappings) {
                     bulkCopy.ColumnMappings.Add(source, dest);
                 }
 
                 await bulkCopy.WriteToServerAsync(reader, token);
             }, ct);
+        }
+
+        private async Task RunAsync(Func<SqlBulkCopy, CancellationToken, Task> write, CancellationToken ct) {
+            if (_transactionConnection is not null) {
+                using var transactionalCopy = CreateBulkCopy(_transactionConnection, _transaction);
+                await write(transactionalCopy, ct);
+                return;
+            }
+
+            await _retryPolicy.ExecuteAsync(async token => {
+                await using var connection = await _connectionFactory!.CreateOpenConnectionAsync(token);
+                using var bulkCopy = CreateBulkCopy(connection, null);
+                await write(bulkCopy, token);
+            }, ct);
+        }
+
+        private SqlBulkCopy CreateBulkCopy(SqlConnection connection, SqlTransaction? transaction) {
+            return new SqlBulkCopy(connection, SqlBulkCopyOptions.Default, transaction) {
+                DestinationTableName = _destinationTable,
+                BulkCopyTimeout = _timeout,
+                BatchSize = _batchSize
+            };
         }
 
         private void ApplyMappings(SqlBulkCopy bulkCopy, DataTable data) {

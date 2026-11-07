@@ -1,8 +1,7 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
-using SQLBridge.StoredProcedures;
 
-namespace SQLBridge.Tests.StoredProcedures {
+namespace SQLBridge.Tests {
     public class OutputParameterCollectionTests {
 
         private static OutputParameterCollection Capture() {

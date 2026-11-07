@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using Microsoft.Data.SqlClient;
 
-namespace SQLBridge.Core {
+namespace SQLBridge {
     internal static class ParameterBuilder {
 
         private static readonly ConcurrentDictionary<Type, PropertyAccessor[]> Cache = new();

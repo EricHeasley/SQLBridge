@@ -1,6 +1,5 @@
-using SQLBridge.Caching;
 
-namespace SQLBridge.Tests.Caching {
+namespace SQLBridge.Tests {
     public class MemoryQueryCacheTests {
 
         [Fact]

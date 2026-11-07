@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace SQLBridge.Caching {
+namespace SQLBridge {
     internal sealed class MemoryQueryCache : IQueryCache, IDisposable {
 
         private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();

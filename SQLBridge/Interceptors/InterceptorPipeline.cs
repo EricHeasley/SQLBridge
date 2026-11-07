@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 
-namespace SQLBridge.Interceptors {
+namespace SQLBridge {
     /// <summary>
     /// Executes all registered interceptors in order (before) and reverse order (after/error).
     /// </summary>

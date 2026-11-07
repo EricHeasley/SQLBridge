@@ -1,7 +1,6 @@
 using Microsoft.Data.SqlClient;
-using SQLBridge.Core;
 
-namespace SQLBridge.Tests.Core {
+namespace SQLBridge.Tests {
     public class ParameterBuilderTests {
 
         [Fact]

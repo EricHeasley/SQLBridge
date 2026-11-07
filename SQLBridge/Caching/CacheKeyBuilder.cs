@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.SqlClient;
 
-namespace SQLBridge.Caching {
+namespace SQLBridge {
     internal static class CacheKeyBuilder {
 
         /// <summary>

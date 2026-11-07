@@ -1,4 +1,4 @@
-namespace SQLBridge.Caching {
+namespace SQLBridge {
     public sealed record CacheStats(
         int EntryCount,
         long HitCount,

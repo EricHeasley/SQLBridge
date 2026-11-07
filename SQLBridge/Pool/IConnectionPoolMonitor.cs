@@ -1,5 +1,5 @@
 
-namespace SQLBridge.Pool {
+namespace SQLBridge {
     public interface IConnectionPoolMonitor {
 
         /// <summary>

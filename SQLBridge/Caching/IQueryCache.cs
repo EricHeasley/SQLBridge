@@ -1,5 +1,5 @@
 
-namespace SQLBridge.Caching {
+namespace SQLBridge {
     public interface IQueryCache {
 
         /// <summary>

@@ -1,44 +1,71 @@
 using Microsoft.Extensions.DependencyInjection;
-using SQLBridge.Caching;
-using SQLBridge.Core;
-using SQLBridge.Pool;
 
 namespace SQLBridge.Tests {
     public class DependencyInjectionTests {
 
-        private static ServiceProvider Build(Action<IServiceCollection>? configure = null) {
+        private const string ConnectionString = "Server=localhost;Database=Test;Integrated Security=true;TrustServerCertificate=true";
+
+        private static ServiceProvider Build(Action<SqlBridgeOptions>? configure = null) {
             var services = new ServiceCollection();
             services.AddLogging();
-            services.AddSqlClient("Server=localhost;Database=Test;Integrated Security=true;TrustServerCertificate=true");
-            configure?.Invoke(services);
+            services.AddSqlBridge(options => {
+                options.ConnectionString = ConnectionString;
+                configure?.Invoke(options);
+            });
             return services.BuildServiceProvider();
         }
 
         [Fact]
-        public void AddSqlClient_ResolvesSqlClientWithCachingByDefault() {
+        public void AddSqlBridge_ResolvesSqlBridgeWithCachingByDefault() {
             using var provider = Build();
 
             var client = provider.GetRequiredService<ISqlClient>();
 
+            Assert.IsType<SqlBridge>(client);
             Assert.NotNull(client.Cache);
             Assert.Null(client.Pool);
         }
 
         [Fact]
-        public void AddSqlClientPoolMonitoring_ExposesPoolMonitor() {
-            using var provider = Build(s => s.AddSqlClientPoolMonitoring());
+        public void EnablePoolMonitoring_ExposesPoolMonitor() {
+            using var provider = Build(o => o.EnablePoolMonitoring = true);
 
             var client = provider.GetRequiredService<ISqlClient>();
 
             Assert.NotNull(client.Pool);
-            Assert.IsAssignableFrom<IConnectionPoolMonitor>(client.Pool);
+            Assert.Equal(0, client.Pool.GetStats().TotalConnectionsOpened);
         }
 
         [Fact]
-        public void AddSqlClientCaching_ReplacesDefaultCache() {
-            using var provider = Build(s => s.AddSqlClientCaching(o => o.MaxEntries = 5));
+        public void AddSqlBridge_WithConnectionString_RegistersSingleClient() {
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddSqlBridge(ConnectionString);
+            using var provider = services.BuildServiceProvider();
 
-            Assert.IsType<MemoryQueryCache>(provider.GetRequiredService<IQueryCache>());
+            Assert.Same(provider.GetRequiredService<ISqlClient>(), provider.GetRequiredService<ISqlClient>());
+        }
+
+        [Fact]
+        public async Task AddSqlBridgeInterceptor_IsPickedUpByTheClient() {
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddSqlBridge(ConnectionString);
+            services.AddSingleton<IQueryInterceptor, ShortCircuitingInterceptor>();
+            using var provider = services.BuildServiceProvider();
+
+            var client = provider.GetRequiredService<ISqlClient>();
+            var result = await client.ScalarAsync("SELECT 1");
+
+            Assert.Equal("intercepted", result);
+        }
+
+        private sealed class ShortCircuitingInterceptor : QueryInterceptorBase {
+
+            public override ValueTask<InterceptResult?> BeforeExecuteAsync(CommandContext context, CancellationToken ct = default) {
+                return ValueTask.FromResult<InterceptResult?>(InterceptResult.WithValue("intercepted"));
+            }
+
         }
 
     }

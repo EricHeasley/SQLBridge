@@ -1,16 +1,12 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
-using SQLBridge.Configuration;
-using SQLBridge.Core;
-using SQLBridge.Mapping;
-using SQLBridge.Resilience;
 
-namespace SQLBridge.StoredProcedures {
+namespace SQLBridge {
     internal sealed class StoredProcedureBuilder : IStoredProcedureBuilder {
 
         private readonly ISqlConnectionFactory _connectionFactory;
         private readonly RetryPolicy _retryPolicy;
-        private readonly SqlClientOptions _options;
+        private readonly SqlBridgeOptions _options;
         private readonly string _procedureName;
         private readonly List<SqlParameter> _parameters = [];
         private readonly Dictionary<Type, object> _customMappers = new();
@@ -24,7 +20,7 @@ namespace SQLBridge.StoredProcedures {
         internal StoredProcedureBuilder(
             ISqlConnectionFactory connectionFactory,
             RetryPolicy retryPolicy,
-            SqlClientOptions options,
+            SqlBridgeOptions options,
             string procedureName) {
             _connectionFactory = connectionFactory;
             _retryPolicy = retryPolicy;
@@ -36,7 +32,7 @@ namespace SQLBridge.StoredProcedures {
             SqlConnection connection,
             SqlTransaction transaction,
             RetryPolicy retryPolicy,
-            SqlClientOptions options,
+            SqlBridgeOptions options,
             string procedureName) {
             _connectionFactory = null!;
             _transactionConnection = connection;
@@ -150,7 +146,7 @@ namespace SQLBridge.StoredProcedures {
             }, ct);
         }
 
-        public async Task<SprocResult> ExecuteAsync(CancellationToken ct = default) {
+        public async Task<StoredProcedureResult> ExecuteAsync(CancellationToken ct = default) {
             return await _retryPolicy.ExecuteAsync(async token => {
                 await using var scope = await CreateCommandAsync(token);
                 var rows = await scope.Command.ExecuteNonQueryAsync(token);
@@ -158,11 +154,11 @@ namespace SQLBridge.StoredProcedures {
                 var output = new OutputParameterCollection();
                 output.Capture(scope.Command.Parameters);
 
-                return new SprocResult { RowsAffected = rows, OutputParams = output };
+                return new StoredProcedureResult { RowsAffected = rows, OutputParams = output };
             }, ct);
         }
 
-        public async Task<SprocResult<T>> ExecuteAsync<T>(CancellationToken ct = default) where T : new() {
+        public async Task<StoredProcedureResult<T>> ExecuteAsync<T>(CancellationToken ct = default) where T : new() {
             return await _retryPolicy.ExecuteAsync(async token => {
                 await using var scope = await CreateCommandAsync(token);
                 var mapper = GetMapper<T>();
@@ -181,7 +177,7 @@ namespace SQLBridge.StoredProcedures {
                 var output = new OutputParameterCollection();
                 output.Capture(scope.Command.Parameters);
 
-                return new SprocResult<T> { Data = results, RowsAffected = rows, OutputParams = output };
+                return new StoredProcedureResult<T> { Data = results, RowsAffected = rows, OutputParams = output };
             }, ct);
         }
 
@@ -257,28 +253,6 @@ namespace SQLBridge.StoredProcedures {
 
         private static string EnsureAt(string name) {
             return name.StartsWith('@') ? name : $"@{name}";
-        }
-
-        /// <summary>
-        /// Manages the lifetime of a command and optionally its connection.
-        /// </summary>
-        private sealed class CommandScope : IAsyncDisposable {
-
-            private readonly SqlConnection? _ownedConnection;
-            public SqlCommand Command { get; }
-
-            public CommandScope(SqlCommand command, SqlConnection? ownedConnection) {
-                Command = command;
-                _ownedConnection = ownedConnection;
-            }
-
-            public async ValueTask DisposeAsync() {
-                await Command.DisposeAsync();
-                if (_ownedConnection is not null) {
-                    await _ownedConnection.DisposeAsync();
-                }
-            }
-
         }
 
     }

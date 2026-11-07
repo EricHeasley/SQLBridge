@@ -1,8 +1,9 @@
-namespace SQLBridge.Pool {
+namespace SQLBridge {
+    /// <summary>
+    /// Counters for connections opened through SQLBridge. ADO.NET does not expose live pool sizes,
+    /// so only what SQLBridge itself observes is reported.
+    /// </summary>
     public sealed record ConnectionPoolStats(
-        int ActiveConnections,
-        int IdleConnections,
-        int TotalConnections,
         long TotalConnectionsOpened,
         long TotalConnectionsFailed,
         TimeSpan AverageOpenTime);

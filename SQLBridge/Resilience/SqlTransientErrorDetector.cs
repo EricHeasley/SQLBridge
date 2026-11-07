@@ -1,6 +1,6 @@
 using Microsoft.Data.SqlClient;
 
-namespace SQLBridge.Resilience {
+namespace SQLBridge {
     internal static class SqlTransientErrorDetector {
 
         private static readonly HashSet<int> TransientErrorNumbers =

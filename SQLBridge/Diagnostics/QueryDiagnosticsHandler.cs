@@ -1,9 +1,8 @@
 using System.Diagnostics;
-using SQLBridge.Configuration;
 
-namespace SQLBridge.Diagnostics {
+namespace SQLBridge {
     /// <summary>
-    /// Callback for observing query execution. Register via SqlClientOptions.
+    /// Callback for observing query execution. Register via SqlBridgeOptions.
     /// </summary>
     public delegate void QueryDiagnosticsHandler(QueryDiagnostics diagnostics);
 }

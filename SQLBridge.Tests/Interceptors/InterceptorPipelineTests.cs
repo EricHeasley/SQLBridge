@@ -1,8 +1,7 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
-using SQLBridge.Interceptors;
 
-namespace SQLBridge.Tests.Interceptors {
+namespace SQLBridge.Tests {
     public class InterceptorPipelineTests {
 
         private sealed class RecordingInterceptor : QueryInterceptorBase {

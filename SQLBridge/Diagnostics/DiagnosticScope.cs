@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace SQLBridge.Diagnostics {
+namespace SQLBridge {
     /// <summary>
     /// Tracks query execution timing and metadata.
     /// </summary>
