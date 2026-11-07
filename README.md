@@ -3,9 +3,6 @@ SQL Client Framework
 
 ## Layout
 
-| Project | Contents |
-| --- | --- |
-| `SQLBridge.Service.Contracts` | Interfaces (`ISqlClient`, `IQueryCache`, ...) plus options, results and other data types |
-| `SQLBridge.Service` | Implementations and DI registration (`AddSqlClient`, ...) |
+Single project, `SQLBridge`, organised by folder: `Core`, `StoredProcedures`, `Transactions`, `BulkOperations`, `Caching`, `Pool`, `Interceptors`, `Mapping`, `Resilience`, `Diagnostics`, `Configuration`.
 
 Register with `services.AddSqlClient(connectionString)` and inject `ISqlClient`.
