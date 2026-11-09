@@ -29,10 +29,6 @@ namespace SQLBridge {
             return await operation(call, ct);
         }
 
-        public override IStoredProcedureBuilder StoredProcedure(string procedureName) {
-            return new StoredProcedureBuilder(_connection, _transaction, _retryPolicy, Options, procedureName);
-        }
-
         public override IBulkCopyBuilder BulkCopy(string destinationTable) {
             return new BulkCopyBuilder(_connection, _transaction, _retryPolicy, destinationTable);
         }

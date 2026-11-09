@@ -1,6 +1,6 @@
 namespace SQLBridge {
     /// <summary>
-    /// Settings for the query result cache used by <see cref="ISqlClient.QueryCachedAsync{T}"/>.
+    /// Settings for the query result cache used by <see cref="ISqlRequest.CacheFor"/>.
     /// </summary>
     public sealed class CacheOptions {
         /// <summary>

@@ -1,17 +1,11 @@
 using System.Diagnostics;
-using Microsoft.Data.SqlClient;
 
 namespace SQLBridge {
-    internal sealed class ConnectionPoolMonitor : IConnectionPoolMonitor {
+    internal sealed class ConnectionPoolMonitor {
 
-        private readonly string _connectionString;
         private long _totalOpened;
         private long _totalFailed;
         private long _totalOpenTimeMs;
-
-        public ConnectionPoolMonitor(string connectionString) {
-            _connectionString = connectionString;
-        }
 
         internal void RecordOpen(TimeSpan elapsed) {
             Interlocked.Increment(ref _totalOpened);
@@ -35,11 +29,6 @@ namespace SQLBridge {
                 TotalConnectionsOpened: totalOpened,
                 TotalConnectionsFailed: totalFailed,
                 AverageOpenTime: averageOpenTime);
-        }
-
-        public void ClearPool() {
-            using var connection = new SqlConnection(_connectionString);
-            SqlConnection.ClearPool(connection);
         }
 
     }

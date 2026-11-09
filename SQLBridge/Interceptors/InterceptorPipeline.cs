@@ -35,7 +35,7 @@ namespace SQLBridge {
             var commandText = call.CommandText;
             var context = new CommandContext {
                 CommandText = commandText,
-                Parameters = call.Parameters,
+                Parameters = call.DescribeParameters(),
                 CommandType = call.CommandTypeName
             };
 

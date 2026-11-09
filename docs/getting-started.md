@@ -1,7 +1,7 @@
 # Getting started
 
-SQLBridge is a SQL Server client built on `Microsoft.Data.SqlClient`. One class, `SqlBridge`, covers
-queries, stored procedures, transactions, bulk copy, caching, retry and diagnostics.
+SQLBridge is a SQL Server client built on `Microsoft.Data.SqlClient`. One class, `SqlBridgeClient`, covers
+queries, stored procedures, parameters, result mapping, caching, transactions, bulk copy, retry and diagnostics.
 
 ## Install
 
@@ -14,10 +14,10 @@ Reference the `SQLBridge` project (or package). Target framework: .NET 8.
 ```csharp
 using SQLBridge;
 
-using var client = new SqlBridge("Server=.;Database=Insurance;Integrated Security=true;TrustServerCertificate=true");
+using var client = new SqlBridgeClient("Server=.;Database=Insurance;Integrated Security=true;TrustServerCertificate=true");
 ```
 
-`SqlBridge` is thread-safe and meant to be created once and shared. It implements `IDisposable`
+`SqlBridgeClient` is thread-safe and meant to be created once and shared. It implements `IDisposable`
 (it owns a cache timer), so dispose it when your application shuts down.
 
 ### With dependency injection
@@ -72,4 +72,4 @@ object? count = await client.ScalarAsync("SELECT COUNT(*) FROM Policy");
 ```
 
 See [usage](usage.md) for every operation, [configuration](configuration.md) for settings, and
-[extending](extending.md) for interceptors and custom mappers.
+[extending](extending.md) for interceptors.

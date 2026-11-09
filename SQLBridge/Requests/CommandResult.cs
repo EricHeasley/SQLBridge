@@ -1,8 +1,8 @@
 namespace SQLBridge {
     /// <summary>
-    /// Outcome of a stored procedure that returns no rows.
+    /// Outcome of a command that returns no rows: rows affected plus output parameters.
     /// </summary>
-    public sealed class StoredProcedureResult {
+    public sealed class CommandResult {
 
         /// <summary>Rows affected as reported by SQL Server.</summary>
         public int RowsAffected { get; init; }

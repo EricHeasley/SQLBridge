@@ -1,7 +1,7 @@
 # Usage guide
 
 All examples use `client` (an `ISqlClient`). Every operation below is also available on a transaction,
-because `ISqlClient` and `ISqlTransaction` share `ISqlOperations`.
+because `ISqlClient` and `ISqlTransaction` share `ISqlOperations` — except caching, which needs the client.
 
 ## Stored procedure or SQL?
 
@@ -12,20 +12,24 @@ Each method takes a `commandText`:
 | `usp_GET_Policy`, `dbo.usp_GET_Policy` (no whitespace) | stored procedure |
 | `SELECT 1`, `EXEC usp_GET_Policy @Id = 1` (contains whitespace) | SQL text |
 
-A bracketed name with spaces, such as `[my proc]`, is treated as SQL. Use
-`client.StoredProcedure("[my proc]")` for that case.
+A bracketed name with spaces, such as `[my proc]`, is treated as SQL.
 
-## Parameters
+## Two ways to call
 
-Pass an anonymous object, a POCO, a `Dictionary<string, object?>` or a `SqlParameter[]`. The `@` prefix is
-added when missing and `null` becomes `DBNull`.
+**Simple methods** take the command text and a parameters object. Use them when that is all you need.
+
+**A request** (`client.Command(...)`) adds parameters, mapping and caching step by step. Everything the
+client can do is a step on the same chain, finished by a terminal call:
 
 ```csharp
-await client.QueryAsync<Policy>("usp_GET_Policy", new { PolicyId = 1, Region = (string?)null });
-await client.QueryAsync<Policy>("usp_GET_Policy", new Dictionary<string, object?> { ["PolicyId"] = 1 });
+var policies = await client.Command("usp_GET_Policy")
+    .WithParam("Region", "TX")                        // parameters
+    .MapWith(new PolicyMapper())                      // mapping
+    .CacheFor(TimeSpan.FromMinutes(5))                // caching
+    .QueryAsync<Policy>();                            // run
 ```
 
-## Operations
+## Simple methods
 
 | Method | Returns | Use for |
 | --- | --- | --- |
@@ -34,42 +38,120 @@ await client.QueryAsync<Policy>("usp_GET_Policy", new Dictionary<string, object?
 | `ExecuteAsync` | `int` rows affected | INSERT, UPDATE, DELETE |
 | `ScalarAsync` | `object?` | one value |
 | `StreamAsync<T>` | `IAsyncEnumerable<T>` | large result sets |
-| `ExecuteWithOutputAsync<T>` | `StoredProcedureResult<T>` | rows plus output parameters |
-| `StoredProcedure(name)` | `IStoredProcedureBuilder` | typed parameters, multiple result sets |
-| `BulkCopy(table)` | `IBulkCopyBuilder` | bulk inserts |
-
-### Streaming
 
 ```csharp
+var policies = await client.QueryAsync<Policy>("usp_GET_Policy", new { Region = "TX" });
+var one = await client.QuerySingleAsync<Policy>("SELECT PolicyId, HolderName FROM Policy WHERE PolicyId = @PolicyId", new { PolicyId = 1 });
+var rows = await client.ExecuteAsync("usp_UPDATE_Policy", new { PolicyId = 1, Status = "Active" });
+var count = await client.ScalarAsync("SELECT COUNT(*) FROM Policy");
+
 await foreach (var policy in client.StreamAsync<Policy>("usp_GET_AllPolicies")) {
     Process(policy);
 }
 ```
 
-The connection stays open until the loop ends. Streaming is not retried.
+`parameters` can be an anonymous object, a POCO, a `Dictionary<string, object?>` or a `SqlParameter[]`.
+The `@` prefix is added when missing and `null` becomes `DBNull`. Streaming keeps the connection open until the
+loop ends and is not retried.
 
-### Output parameters
+## Requests
+
+### Adding parameters
+
+| Step | Adds |
+| --- | --- |
+| `WithParam(name, value)` | an input parameter (type inferred from the value) |
+| `WithParam(name, value, SqlDbType)` / `(…, size)` | a typed input parameter |
+| `WithParams(object)` | several inputs at once: anonymous object, POCO, dictionary or `SqlParameter[]` |
+| `WithOutputParam(name, SqlDbType, size)` | an output parameter |
+| `WithInputOutput(name, value, SqlDbType, size)` | an input/output parameter |
+| `WithReturnValue()` | the procedure's integer return value |
+| `WithTimeout(seconds)` | a command timeout for this request |
+
+You can mix them freely. Parameter order does not matter.
+
+### Terminal calls
+
+| Call | Returns |
+| --- | --- |
+| `QueryAsync<T>()` | `IReadOnlyList<T>` |
+| `QuerySingleAsync<T>()` | `T?` |
+| `QueryMultipleAsync<T1, T2>()` / `<T1, T2, T3>()` | a tuple of lists, one per result set |
+| `ExecuteAsync()` | `CommandResult`: `RowsAffected` and `OutputParams` |
+| `ExecuteAsync<T>()` | `CommandResult<T>`: `Data`, `RowsAffected`, `OutputParams` |
+| `ScalarAsync()` | `object?` |
+| `StreamAsync<T>()` | `IAsyncEnumerable<T>` |
 
 ```csharp
-var result = await client.ExecuteWithOutputAsync<Policy>(
-    "usp_INSERT_Policy",
-    new { HolderName = "Acme" },
-    configure: b => b.WithOutputParam("PolicyId", SqlDbType.Int).WithReturnValue());
+var result = await client.Command("usp_INSERT_Policy")
+    .WithParam("HolderName", "Acme", SqlDbType.NVarChar, 100)
+    .WithOutputParam("PolicyId", SqlDbType.Int)
+    .WithReturnValue()
+    .ExecuteAsync();
 
 int id = result.OutputParams.Get<int>("PolicyId");
 int? returnValue = result.OutputParams.ReturnValue;
-```
 
-### Fluent stored procedure builder
-
-```csharp
-var (policies, claims) = await client.StoredProcedure("usp_GET_PolicyWithClaims")
-    .WithParam("PolicyId", 1, SqlDbType.Int)
-    .WithTimeout(120)
+var (policies, claims) = await client.Command("usp_GET_PolicyWithClaims")
+    .WithParam("PolicyId", 1)
     .QueryMultipleAsync<Policy, Claim>();
 ```
 
-`QueryMultipleAsync` supports two or three result sets. `WithMapper<T>(mapper)` swaps in a custom mapper.
+Retry, interceptors, logging and diagnostics apply to requests exactly as they do to the simple methods.
+
+## Mapping
+
+By default columns map to public settable properties by name (case-insensitive), or by `[Column("name")]`, using
+compiled expression trees. For anything else, write an `IResultMapper<T>`:
+
+```csharp
+public class PolicyMapper : IResultMapper<Policy> {
+
+    public Policy Map(IDataRecord record) {
+        return new Policy {
+            PolicyId = record.GetInt32(0),
+            HolderName = record.GetString(1)
+        };
+    }
+
+}
+```
+
+Use it for one request, or register it once for every request:
+
+```csharp
+client.Command("usp_GET_Policy").MapWith(new PolicyMapper()).QueryAsync<Policy>();   // one request
+
+options.AddMapper(new PolicyMapper());                                               // every request
+```
+
+A mapper given to `MapWith` wins over one registered in the options, which wins over name-based mapping.
+
+## Caching
+
+Add `CacheFor` to a `QueryAsync` request:
+
+```csharp
+var policies = await client.Command("usp_GET_Policy")
+    .WithParam("Region", "TX")
+    .CacheFor()                              // uses Caching.DefaultTtl
+    .QueryAsync<Policy>();
+
+var shortLived = await client.Command("usp_GET_Policy")
+    .WithParam("Region", "TX")
+    .CacheFor(TimeSpan.FromSeconds(30))
+    .QueryAsync<Policy>();
+
+client.InvalidateCache("usp_GET_Policy");    // every cached result of that command
+client.ClearCache();
+CacheStats stats = client.GetCacheStats();   // EntryCount, HitCount, MissCount, EvictionCount, HitRate
+```
+
+The cache key is the command text, the values of the input parameters and the row type. Output parameters and
+parameter order do not matter. Only `QueryAsync` can be cached: `CacheFor` followed by any other terminal call, or
+used inside a transaction, throws `InvalidOperationException`. Writes do not clear the cache, so call
+`InvalidateCache` after changing data. The cache is in memory, per process, with least-recently-used eviction.
+Set `Caching.Enabled = false` to bypass it everywhere.
 
 ## Transactions
 
@@ -77,14 +159,15 @@ var (policies, claims) = await client.StoredProcedure("usp_GET_PolicyWithClaims"
 await using var transaction = await client.BeginTransactionAsync();
 
 await transaction.ExecuteAsync("usp_UPDATE_Policy", new { PolicyId = 1, Status = "Active" });
+await transaction.Command("usp_INSERT_Audit").WithParam("Action", "Activated").ExecuteAsync();
 await transaction.BulkCopy("PolicyAudit").WriteAsync(auditRows);
 
 await transaction.CommitAsync();
 ```
 
-If you dispose the transaction without committing, SQL Server rolls it back. Statements inside a
-transaction run once: they are not retried, because retrying part of a transaction is not safe. Interceptors,
-caching and diagnostics apply only to calls made on the client.
+If you dispose the transaction without committing, SQL Server rolls it back. Statements inside a transaction run
+once: they are not retried, because retrying part of a transaction is not safe. Interceptors, caching and
+diagnostics apply only to calls made on the client.
 
 ## Bulk copy
 
@@ -99,30 +182,15 @@ await client.BulkCopy("Policy")
 For objects, public properties of simple types (numbers, strings, dates, `Guid`, `byte[]`, enums) become columns.
 Without `MapColumn`, columns match by name.
 
-## Caching
-
-```csharp
-var policies = await client.QueryCachedAsync<Policy>("usp_GET_Policy", new { Region = "TX" });
-var shortLived = await client.QueryCachedAsync<Policy>("usp_GET_Policy", new { Region = "TX" }, ttl: TimeSpan.FromSeconds(30));
-
-client.InvalidateCache("usp_GET_Policy");   // all parameter combinations of that command
-client.Cache.Clear();
-var stats = client.Cache.GetStats();        // EntryCount, HitCount, MissCount, EvictionCount, HitRate
-```
-
-The cache key is the command text plus parameter values. Only `QueryCachedAsync` reads or writes the cache.
-Writes through `ExecuteAsync` do not invalidate it: call `InvalidateCache` after changes. The cache is in
-memory, per process, with least-recently-used eviction.
-
 ## Health and monitoring
 
 ```csharp
-await client.PingAsync();   // throws if the database is unreachable
+await client.PingAsync();                  // throws if the database is unreachable
 
 services.AddHealthChecks().AddSqlBridgeHealthCheck();
 
-var stats = client.Pool?.GetStats();   // needs options.EnablePoolMonitoring = true
-client.Pool?.ClearPool();              // after a failover or credential rotation
+ConnectionPoolStats? pool = client.GetPoolStats();   // null unless options.EnablePoolMonitoring = true
+client.ClearPool();                                  // after a failover or credential rotation
 ```
 
 `ConnectionPoolStats` reports connections opened, failed and the average open time. ADO.NET does not expose

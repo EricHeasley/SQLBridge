@@ -14,13 +14,16 @@ namespace SQLBridge {
         private readonly RetryPolicy _retryPolicy;
         private readonly ILogger _logger;
         private readonly InterceptorPipeline _interceptorPipeline;
+        private readonly MemoryQueryCache _queryCache;
 
         public SqlClientOperations(
             ISqlConnectionFactory connectionFactory,
             RetryPolicy retryPolicy,
             SqlBridgeOptions options,
             ILogger logger,
-            InterceptorPipeline interceptorPipeline) : base(options) {
+            InterceptorPipeline interceptorPipeline,
+            MemoryQueryCache queryCache) : base(options) {
+            _queryCache = queryCache;
             _connectionFactory = connectionFactory;
             _retryPolicy = retryPolicy;
             _logger = logger;
@@ -41,12 +44,28 @@ namespace SQLBridge {
             await command.ExecuteScalarAsync(ct);
         }
 
-        public override IStoredProcedureBuilder StoredProcedure(string procedureName) {
-            return new StoredProcedureBuilder(_connectionFactory, _retryPolicy, Options, procedureName);
-        }
-
         public override IBulkCopyBuilder BulkCopy(string destinationTable) {
             return new BulkCopyBuilder(_connectionFactory, _retryPolicy, destinationTable);
+        }
+
+        internal override async Task<IReadOnlyList<T>> RunCachedQueryAsync<T>(SqlCall call, TimeSpan? ttl,
+            CancellationToken ct) {
+            if (!Options.Caching.Enabled) {
+                return await RunQueryAsync<T>(call, ct);
+            }
+
+            var cacheKey = CacheKeyBuilder.Build(call, typeof(T));
+
+            if (_queryCache.TryGet<T>(cacheKey, out var cached)) {
+                _logger.LogDebug("Cache HIT: {CommandText} -> {Key}", call.CommandText, cacheKey);
+                return cached;
+            }
+
+            _logger.LogDebug("Cache MISS: {CommandText} -> {Key}", call.CommandText, cacheKey);
+
+            var result = await RunQueryAsync<T>(call, ct);
+            _queryCache.Set(cacheKey, result, ttl ?? Options.Caching.DefaultTtl);
+            return result;
         }
 
         protected override async Task<CommandScope> OpenAsync(SqlCall call, CancellationToken ct) {

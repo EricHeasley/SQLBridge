@@ -30,9 +30,9 @@ namespace SQLBridge.Tests {
 
             var client = provider.GetRequiredService<ISqlClient>();
 
-            Assert.IsType<SqlBridge>(client);
-            Assert.NotNull(client.Cache);
-            Assert.Null(client.Pool);
+            Assert.IsType<SqlBridgeClient>(client);
+            Assert.Equal(0, client.GetCacheStats().EntryCount);
+            Assert.Null(client.GetPoolStats());
         }
 
         [Fact]
@@ -41,8 +41,9 @@ namespace SQLBridge.Tests {
 
             var client = provider.GetRequiredService<ISqlClient>();
 
-            Assert.NotNull(client.Pool);
-            Assert.Equal(0, client.Pool.GetStats().TotalConnectionsOpened);
+            var stats = client.GetPoolStats();
+            Assert.NotNull(stats);
+            Assert.Equal(0, stats.TotalConnectionsOpened);
         }
 
         [Fact]

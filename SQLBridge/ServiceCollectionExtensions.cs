@@ -74,7 +74,7 @@ namespace SQLBridge {
         }
 
         private static ISqlClient CreateSqlBridge(IServiceProvider provider) {
-            return new SqlBridge(
+            return new SqlBridgeClient(
                 provider.GetRequiredService<IOptions<SqlBridgeOptions>>().Value,
                 provider.GetService<ILoggerFactory>(),
                 provider.GetServices<IQueryInterceptor>());

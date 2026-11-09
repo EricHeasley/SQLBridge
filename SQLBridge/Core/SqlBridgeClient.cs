@@ -1,65 +1,62 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace SQLBridge {
     /// <summary>
-    /// The one class applications use for SQL Server access: queries, stored procedures, transactions,
-    /// bulk copy, caching, retry, interceptors and diagnostics.
+    /// The one class applications use for SQL Server access: queries, stored procedures, parameters,
+    /// result mapping, caching, transactions, bulk copy, retry, interceptors and diagnostics.
     /// </summary>
     /// <example>
     /// <code>
-    /// using var client = new SqlBridge("Server=...;Database=...");
+    /// using var client = new SqlBridgeClient("Server=...;Database=...");
+    ///
     /// var policies = await client.QueryAsync&lt;Policy&gt;("usp_GET_Policy", new { PolicyId = 1 });
+    ///
+    /// var cached = await client.Command("usp_GET_Policy")
+    ///     .WithParam("Region", "TX")
+    ///     .CacheFor(TimeSpan.FromMinutes(5))
+    ///     .QueryAsync&lt;Policy&gt;();
     /// </code>
     /// </example>
-    public sealed class SqlBridge : ISqlClient, IDisposable {
+    public sealed class SqlBridgeClient : ISqlClient, IDisposable {
 
         private readonly SqlClientOperations _operations;
         private readonly MemoryQueryCache _queryCache;
+        private readonly ConnectionPoolMonitor? _poolMonitor;
         private readonly SqlBridgeOptions _options;
-        private readonly ILogger _logger;
 
         /// <summary>Creates a client with default options: 30 s timeout, 5 retries, caching on.</summary>
         /// <param name="connectionString">SQL Server connection string.</param>
         /// <exception cref="InvalidOperationException">The connection string is empty.</exception>
-        public SqlBridge(string connectionString)
+        public SqlBridgeClient(string connectionString)
             : this(new SqlBridgeOptions { ConnectionString = connectionString }) {
         }
 
         /// <summary>Creates a client from full options.</summary>
-        /// <param name="options">Settings. Interceptors listed here are used.</param>
+        /// <param name="options">Settings. Interceptors and mappers listed here are used.</param>
         /// <param name="loggerFactory">Optional. Slow queries, retries and failures are logged through it.</param>
         /// <param name="interceptors">Optional extra interceptors, run after those in <paramref name="options"/>.</param>
-        public SqlBridge(
+        public SqlBridgeClient(
             SqlBridgeOptions options,
             ILoggerFactory? loggerFactory = null,
             IEnumerable<IQueryInterceptor>? interceptors = null) {
             _options = options;
             loggerFactory ??= NullLoggerFactory.Instance;
-            _logger = loggerFactory.CreateLogger<SqlBridge>();
 
-            ConnectionPoolMonitor? poolMonitor = options.EnablePoolMonitoring
-                ? new ConnectionPoolMonitor(options.ConnectionString)
-                : null;
-            Pool = poolMonitor;
-
+            _poolMonitor = options.EnablePoolMonitoring ? new ConnectionPoolMonitor() : null;
             _queryCache = new MemoryQueryCache(options.Caching.MaxEntries, options.Caching.EvictionScanInterval);
 
-            var connectionFactory = new SqlConnectionFactory(options.ConnectionString, poolMonitor);
+            var connectionFactory = new SqlConnectionFactory(options.ConnectionString, _poolMonitor);
             var retryPolicy = new RetryPolicy(Options.Create(options), loggerFactory.CreateLogger<RetryPolicy>());
             var pipeline = new InterceptorPipeline(
                 options.Interceptors.Concat(interceptors ?? []),
                 loggerFactory.CreateLogger<InterceptorPipeline>());
 
-            _operations = new SqlClientOperations(connectionFactory, retryPolicy, options, _logger, pipeline);
+            _operations = new SqlClientOperations(
+                connectionFactory, retryPolicy, options, loggerFactory.CreateLogger<SqlBridgeClient>(), pipeline, _queryCache);
         }
-
-        /// <inheritdoc />
-        public IQueryCache Cache => _queryCache;
-
-        /// <inheritdoc />
-        public IConnectionPoolMonitor? Pool { get; }
 
         // === Queries and commands ===
 
@@ -94,15 +91,8 @@ namespace SQLBridge {
         }
 
         /// <inheritdoc />
-        public async Task<StoredProcedureResult<T>> ExecuteWithOutputAsync<T>(string procedureName,
-            object? parameters = null, Action<IStoredProcedureBuilder>? configure = null,
-            CancellationToken ct = default) where T : new() {
-            return await _operations.ExecuteWithOutputAsync<T>(procedureName, parameters, configure, ct);
-        }
-
-        /// <inheritdoc />
-        public IStoredProcedureBuilder StoredProcedure(string procedureName) {
-            return _operations.StoredProcedure(procedureName);
+        public ISqlRequest Command(string commandText) {
+            return _operations.Command(commandText);
         }
 
         /// <inheritdoc />
@@ -110,32 +100,34 @@ namespace SQLBridge {
             return _operations.BulkCopy(destinationTable);
         }
 
-        // === Cached queries ===
-
-        /// <inheritdoc />
-        public async Task<IReadOnlyList<T>> QueryCachedAsync<T>(string commandText, object? parameters = null,
-            TimeSpan? ttl = null, CancellationToken ct = default) where T : new() {
-            if (!_options.Caching.Enabled) {
-                return await _operations.QueryAsync<T>(commandText, parameters, ct);
-            }
-
-            var cacheKey = CacheKeyBuilder.Build(commandText, parameters);
-
-            if (_queryCache.TryGet<T>(cacheKey, out var cached)) {
-                _logger.LogDebug("Cache HIT: {CommandText} -> {Key}", commandText, cacheKey);
-                return cached;
-            }
-
-            _logger.LogDebug("Cache MISS: {CommandText} -> {Key}", commandText, cacheKey);
-
-            var result = await _operations.QueryAsync<T>(commandText, parameters, ct);
-            _queryCache.Set(cacheKey, result, ttl ?? _options.Caching.DefaultTtl);
-            return result;
-        }
+        // === Cache ===
 
         /// <inheritdoc />
         public void InvalidateCache(string commandText) {
-            _queryCache.InvalidateByPrefix(commandText);
+            _queryCache.InvalidateByPrefix(CacheKeyBuilder.InvalidationPrefix(commandText));
+        }
+
+        /// <inheritdoc />
+        public void ClearCache() {
+            _queryCache.Clear();
+        }
+
+        /// <inheritdoc />
+        public CacheStats GetCacheStats() {
+            return _queryCache.GetStats();
+        }
+
+        // === Connections ===
+
+        /// <inheritdoc />
+        public ConnectionPoolStats? GetPoolStats() {
+            return _poolMonitor?.GetStats();
+        }
+
+        /// <inheritdoc />
+        public void ClearPool() {
+            using var connection = new SqlConnection(_options.ConnectionString);
+            SqlConnection.ClearPool(connection);
         }
 
         // === Transactions and health ===
@@ -150,7 +142,7 @@ namespace SQLBridge {
             await _operations.PingAsync(ct);
         }
 
-        /// <inheritdoc />
+        /// <summary>Releases the cache's background timer.</summary>
         public void Dispose() {
             _queryCache.Dispose();
         }

@@ -39,10 +39,14 @@ namespace SQLBridge.Tests {
         }
 
         [Fact]
-        public void FromObject_PassesSqlParametersThrough() {
+        public void FromObject_CopiesSqlParametersSoRetriesCanReuseThem() {
             var existing = new[] { new SqlParameter("@X", 1) };
 
-            Assert.Same(existing, ParameterBuilder.FromObject(existing));
+            var result = ParameterBuilder.FromObject(existing);
+
+            Assert.Equal("@X", result[0].ParameterName);
+            Assert.Equal(1, result[0].Value);
+            Assert.NotSame(existing[0], result[0]);
         }
 
         [Fact]

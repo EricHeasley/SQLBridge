@@ -6,7 +6,8 @@ namespace SQLBridge {
     /// Every method takes a <c>commandText</c> that is either a stored procedure name (no whitespace,
     /// e.g. "usp_GET_Policy" or "dbo.usp_GET_Policy") or a SQL statement (anything containing whitespace).
     /// <c>parameters</c> can be an anonymous object, a POCO, a <c>Dictionary&lt;string, object?&gt;</c> or
-    /// <c>SqlParameter[]</c>; null values are sent as <c>DBNull</c>.
+    /// <c>SqlParameter[]</c>; null values are sent as <c>DBNull</c>. For typed or output parameters,
+    /// custom mapping or caching, use <see cref="Command"/>.
     /// </remarks>
     public interface ISqlOperations {
 
@@ -42,21 +43,11 @@ namespace SQLBridge {
             CancellationToken ct = default) where T : new();
 
         /// <summary>
-        /// Runs a stored procedure and returns its rows together with output parameters and the return value.
+        /// Starts a request that adds parameters (typed, output, return value), custom mapping and caching
+        /// step by step, then runs with a terminal call such as <c>QueryAsync&lt;T&gt;()</c>.
         /// </summary>
-        /// <param name="procedureName">The stored procedure name.</param>
-        /// <param name="parameters">Input parameters, or null.</param>
-        /// <param name="configure">Adds output parameters or other settings, e.g. <c>b => b.WithOutputParam("NewId", SqlDbType.Int)</c>.</param>
-        /// <param name="ct">Cancels the call.</param>
-        Task<StoredProcedureResult<T>> ExecuteWithOutputAsync<T>(string procedureName, object? parameters = null,
-            Action<IStoredProcedureBuilder>? configure = null,
-            CancellationToken ct = default) where T : new();
-
-        /// <summary>
-        /// Starts a fluent stored procedure call for typed parameters, output parameters,
-        /// custom mappers and multiple result sets.
-        /// </summary>
-        IStoredProcedureBuilder StoredProcedure(string procedureName);
+        /// <param name="commandText">A stored procedure name or SQL text.</param>
+        ISqlRequest Command(string commandText);
 
         /// <summary>Starts a bulk copy (SqlBulkCopy) into a table.</summary>
         /// <param name="destinationTable">The destination table name.</param>

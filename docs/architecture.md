@@ -1,7 +1,8 @@
 # Architecture
 
 ```
-SqlBridge (public)                     the one class applications use
+SqlBridgeClient (public)               the one class applications use
+  └─ Command(...) -> SqlRequest        parameters, mapping and caching as steps, then a terminal call
   └─ SqlClientOperations               connection per call + retry + interceptors + diagnostics
        └─ SqlOperations                shared QueryAsync / ExecuteAsync / ScalarAsync / StreamAsync ...
 SqlTransactionWrapper                  same SqlOperations, bound to one connection and transaction
@@ -15,11 +16,11 @@ and how the run is wrapped (retry, interceptors, logging for the client; none fo
 
 | Folder | Contents |
 | --- | --- |
-| `Core` | `SqlBridge`, the interfaces `ISqlClient` and `ISqlOperations`, and the shared operations |
-| `StoredProcedures` | fluent builder, `StoredProcedureResult`, `OutputParameterCollection` |
+| `Core` | `SqlBridgeClient`, the interfaces `ISqlClient` and `ISqlOperations`, and the shared operations |
+| `Requests` | `ISqlRequest` and its implementation, `CommandResult`, `OutputParameterCollection` |
 | `Transactions` | `ISqlTransaction` and its implementation |
 | `BulkOperations` | bulk copy builder |
-| `Caching` | `IQueryCache`, in-memory cache, key builder, `CacheOptions`, `CacheStats` |
+| `Caching` | in-memory cache, key builder, `CacheOptions`, `CacheStats` |
 | `Pool` | connection monitor and stats |
 | `Interceptors` | interceptor interface, base class, pipeline, `CommandContext` |
 | `Mapping` | result mappers and `[Column]` |
@@ -31,8 +32,8 @@ Everything public is in the `SQLBridge` namespace; implementation classes are `i
 
 ## Request flow (client)
 
-1. `SqlBridge.QueryAsync` decides stored procedure or text from the command text.
-2. `SqlClientOperations.RunAsync` starts the timer, then runs interceptors if any are registered.
+1. A simple method or a request terminal call builds a `SqlCall`: command text (stored procedure or SQL, decided from the text), parameters, timeout and mappers.
+2. For a cached request, the cache is checked first. Otherwise `SqlClientOperations.RunAsync` starts the timer, then runs interceptors if any are registered.
 3. The retry policy calls the action, which opens a pooled connection, builds the command, and reads rows.
 4. Duration is logged, and `OnQueryExecuted` is invoked with the outcome.
 

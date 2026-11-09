@@ -1,7 +1,7 @@
 using System.Data;
 
 namespace SQLBridge.Tests {
-    public class SqlBridgeTests {
+    public class SqlBridgeClientTests {
 
         private const string ConnectionString = "Server=localhost;Database=Test;Integrated Security=true;TrustServerCertificate=true";
 
@@ -14,15 +14,15 @@ namespace SQLBridge.Tests {
         }
 
         private static void CreateWithoutConnectionString() {
-            new SqlBridge(string.Empty);
+            new SqlBridgeClient(string.Empty);
         }
 
         [Fact]
         public void New_WithConnectionStringOnly_NeedsNoDependencyInjection() {
-            using var client = new SqlBridge(ConnectionString);
+            using var client = new SqlBridgeClient(ConnectionString);
 
-            Assert.NotNull(client.Cache);
-            Assert.Null(client.Pool);
+            Assert.Equal(0, client.GetCacheStats().EntryCount);
+            Assert.Null(client.GetPoolStats());
         }
 
         [Fact]
@@ -34,7 +34,7 @@ namespace SQLBridge.Tests {
         public async Task Interceptors_CanBeSetOnOptionsWithoutDependencyInjection() {
             var options = new SqlBridgeOptions { ConnectionString = ConnectionString };
             options.Interceptors.Add(new AnswerInterceptor());
-            using var client = new SqlBridge(options);
+            using var client = new SqlBridgeClient(options);
 
             var result = await client.ScalarAsync("usp_GET_Policy");
 

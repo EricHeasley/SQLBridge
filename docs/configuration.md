@@ -11,12 +11,13 @@ All settings live on `SqlBridgeOptions`. Set them in code or bind them from conf
 | `Retry.MaxRetryCount` | `5` | Retries for transient errors; `0` disables retry |
 | `Retry.InitialDelay` | `200 ms` | Wait before the first retry; doubles each attempt, plus up to 50% jitter |
 | `Retry.MaxRetryDelay` | `30 s` | Upper limit on one wait |
-| `Caching.Enabled` | `true` | When false, `QueryCachedAsync` always hits the database |
+| `Caching.Enabled` | `true` | When false, `CacheFor` is ignored and every query hits the database |
 | `Caching.DefaultTtl` | `5 min` | Lifetime of a cached result |
 | `Caching.MaxEntries` | `1000` | Entries before least-recently-used eviction |
 | `Caching.EvictionScanInterval` | `1 min` | How often expired entries are swept |
-| `EnablePoolMonitoring` | `false` | Fills `client.Pool` |
+| `EnablePoolMonitoring` | `false` | Makes `client.GetPoolStats()` return counters instead of null |
 | `Interceptors` | empty | Interceptors run around every client query |
+| `AddMapper<T>(mapper)` | none | Method, not a setting: a mapper used for `T` in every request |
 | `OnQueryExecuted` | none | Callback with `QueryDiagnostics` after each client query |
 | `SlowQueryThreshold` | `1 s` | Queries slower than this are logged as warnings |
 
@@ -52,8 +53,8 @@ services.Configure<SqlBridgeOptions>(o => o.OnQueryExecuted = d => metrics.Recor
 
 ## Logging
 
-`SqlBridge` logs through `ILoggerFactory` when one is available (with dependency injection, that means `AddLogging()` is registered, which ASP.NET does for you; otherwise pass one to
-`new SqlBridge(options, loggerFactory)` otherwise). Without one, nothing is logged.
+`SqlBridgeClient` logs through `ILoggerFactory` when one is available (with dependency injection, that means `AddLogging()` is registered, which ASP.NET does for you; otherwise pass one to
+`new SqlBridgeClient(options, loggerFactory)` otherwise). Without one, nothing is logged.
 
 | Level | Event |
 | --- | --- |

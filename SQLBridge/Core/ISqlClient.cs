@@ -1,32 +1,37 @@
 namespace SQLBridge {
     /// <summary>
-    /// The single entry point for SQLBridge. Create one with <c>new SqlBridge(connectionString)</c>
-    /// or inject it after <c>services.AddSqlBridge(...)</c>.
+    /// The single entry point for SQLBridge. Create a <see cref="SqlBridgeClient"/> with
+    /// <c>new SqlBridgeClient(connectionString)</c> or inject this interface after <c>services.AddSqlBridge(...)</c>.
+    /// Parameters, mapping and caching are configured per call with <see cref="ISqlOperations.Command"/>.
     /// </summary>
     public interface ISqlClient : ISqlOperations {
 
-        // === Cached queries ===
+        // === Cache ===
 
         /// <summary>
-        /// Runs a query with result caching. Results are cached by command text + parameters.
-        /// </summary>
-        Task<IReadOnlyList<T>> QueryCachedAsync<T>(string commandText, object? parameters = null,
-            TimeSpan? ttl = null, CancellationToken ct = default) where T : new();
-
-        /// <summary>
-        /// Invalidates cached results for a command text (all parameter combinations).
+        /// Removes cached results for a command text (all parameter combinations).
         /// </summary>
         void InvalidateCache(string commandText);
 
-        /// <summary>
-        /// Query cache for stats and clearing.
-        /// </summary>
-        IQueryCache Cache { get; }
+        /// <summary>Removes every cached result.</summary>
+        void ClearCache();
+
+        /// <summary>Hits, misses, evictions and size of the query cache.</summary>
+        CacheStats GetCacheStats();
+
+        // === Connections ===
 
         /// <summary>
-        /// Connection pool monitor. Null unless <see cref="SqlBridgeOptions.EnablePoolMonitoring"/> is true.
+        /// Counters for connections opened through this client, or null unless
+        /// <see cref="SqlBridgeOptions.EnablePoolMonitoring"/> is true.
         /// </summary>
-        IConnectionPoolMonitor? Pool { get; }
+        ConnectionPoolStats? GetPoolStats();
+
+        /// <summary>
+        /// Clears the ADO.NET connection pool, forcing connections to be re-established.
+        /// Typically only needed after a failover or credential rotation.
+        /// </summary>
+        void ClearPool();
 
         // === Transactions ===
 

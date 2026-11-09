@@ -2,7 +2,7 @@ using Microsoft.Data.SqlClient;
 
 namespace SQLBridge {
     /// <summary>
-    /// Output, input/output and return value parameters captured after a stored procedure runs.
+    /// Output, input/output and return value parameters captured after a command runs.
     /// Names are case-insensitive and the "@" prefix is optional.
     /// </summary>
     public sealed class OutputParameterCollection {

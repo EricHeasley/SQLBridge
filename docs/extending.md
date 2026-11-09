@@ -2,7 +2,7 @@
 
 ## Interceptors
 
-An interceptor sees every query run on the client. Derive from `QueryInterceptorBase` and override only
+An interceptor sees every query run on the client, whether it comes from a simple method or a request. Derive from `QueryInterceptorBase` and override only
 the hooks you need.
 
 | Hook | When | Can |
@@ -40,30 +40,13 @@ services.AddSqlBridgeInterceptor<AuditInterceptor>();       // or built by the c
 
 `CommandContext` carries `CommandText`, `Parameters`, `CommandType`, `Duration`, `Result`, `RowsAffected` and a `Properties`
 bag for passing state between interceptors. You never need a `SqlCommand`: interceptors see the text and
-parameters of the call, and a short-circuit result replaces the query. Interceptors do not run for calls made through
-`StoredProcedure(...)`, `BulkCopy(...)` or inside a transaction.
+parameters of the call, and a short-circuit result replaces the query. Interceptors do not run for
+`BulkCopy(...)` or for calls made inside a transaction.
 
 ## Custom row mappers
 
-By default rows map by column name using compiled expression trees (fast, cached per column layout). For
-anything else, implement `IResultMapper<T>` and give it to the stored procedure builder:
-
-```csharp
-public class PolicyMapper : IResultMapper<Policy> {
-
-    public Policy Map(IDataRecord record) {
-        return new Policy {
-            PolicyId = record.GetInt32(0),
-            HolderName = record.GetString(1)
-        };
-    }
-
-}
-
-var policies = await client.StoredProcedure("usp_GET_Policy")
-    .WithMapper(new PolicyMapper())
-    .QueryAsync<Policy>();
-```
+Custom mapping is part of the client: see [mapping in the usage guide](usage.md#mapping). Implement
+`IResultMapper<T>`, then use `.MapWith(mapper)` on a request or `options.AddMapper(mapper)` for every request.
 
 ## Query diagnostics
 

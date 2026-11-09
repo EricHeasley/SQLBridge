@@ -1,6 +1,6 @@
 namespace SQLBridge {
     /// <summary>
-    /// Settings for <see cref="SqlBridge"/>. Bind from configuration or set in code.
+    /// Settings for <see cref="SqlBridgeClient"/>. Bind from configuration or set in code.
     /// </summary>
     public sealed class SqlBridgeOptions {
 
@@ -25,6 +25,19 @@ namespace SQLBridge {
         /// Interceptors that run around every query: in order before, in reverse order after or on error.
         /// </summary>
         public List<IQueryInterceptor> Interceptors { get; set; } = [];
+
+        /// <summary>
+        /// Mappers registered with <see cref="AddMapper{T}"/>, keyed by row type.
+        /// </summary>
+        internal Dictionary<Type, object> Mappers { get; } = new();
+
+        /// <summary>
+        /// Registers a mapper used for <typeparamref name="T"/> in every request, in place of name-based mapping.
+        /// A mapper given to <see cref="ISqlRequest.MapWith{T}"/> takes precedence for that request.
+        /// </summary>
+        public void AddMapper<T>(IResultMapper<T> mapper) where T : new() {
+            Mappers[typeof(T)] = mapper;
+        }
 
         /// <summary>
         /// Optional callback invoked after every query with timing and result info.

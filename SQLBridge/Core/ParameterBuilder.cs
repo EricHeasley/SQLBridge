@@ -12,12 +12,9 @@ namespace SQLBridge {
                 return [];
             }
 
-            if (parameters is SqlParameter[] array) {
-                return array;
-            }
-
-            if (parameters is IEnumerable<SqlParameter> enumerable) {
-                return enumerable.ToArray();
+            // A SqlParameter can belong to only one command, so callers get copies
+            if (parameters is IEnumerable<SqlParameter> typed) {
+                return Clone(typed);
             }
 
             if (parameters is IDictionary<string, object?> dict) {
@@ -28,6 +25,15 @@ namespace SQLBridge {
             var result = new List<SqlParameter>();
             foreach (var accessor in accessors) {
                 result.Add(new SqlParameter(EnsureAtPrefix(accessor.Name), accessor.GetValue(parameters) ?? DBNull.Value));
+            }
+
+            return result.ToArray();
+        }
+
+        private static SqlParameter[] Clone(IEnumerable<SqlParameter> parameters) {
+            var result = new List<SqlParameter>();
+            foreach (var parameter in parameters) {
+                result.Add((SqlParameter)((ICloneable)parameter).Clone());
             }
 
             return result.ToArray();
@@ -53,7 +59,7 @@ namespace SQLBridge {
             return accessors.ToArray();
         }
 
-        private static string EnsureAtPrefix(string name) {
+        internal static string EnsureAtPrefix(string name) {
             return name.StartsWith('@') ? name : $"@{name}";
         }
 
