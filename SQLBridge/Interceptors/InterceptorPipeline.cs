@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 
 namespace SQLBridge {
@@ -26,19 +25,18 @@ namespace SQLBridge {
         /// </summary>
         public async Task<T> ExecuteAsync<TState, T>(
             TState state,
-            SqlCommand command,
-            string commandText,
-            string commandType,
-            Func<TState, SqlCommand, CancellationToken, Task<T>> operation,
+            SqlCall call,
+            Func<TState, CancellationToken, Task<T>> operation,
             CancellationToken ct) {
             if (_interceptors.Length == 0) {
-                return await operation(state, command, ct);
+                return await operation(state, ct);
             }
 
+            var commandText = call.CommandText;
             var context = new CommandContext {
-                Command = command,
                 CommandText = commandText,
-                CommandType = commandType
+                Parameters = call.Parameters,
+                CommandType = call.CommandTypeName
             };
 
             // === Before ===
@@ -63,7 +61,7 @@ namespace SQLBridge {
             // === Execute ===
             var sw = Stopwatch.StartNew();
             try {
-                var result = await operation(state, context.Command, ct);
+                var result = await operation(state, ct);
                 sw.Stop();
 
                 context.Duration = sw.Elapsed;

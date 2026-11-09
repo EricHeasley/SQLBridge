@@ -38,9 +38,9 @@ options.Interceptors.Add(new AuditInterceptor(log));       // an instance, in op
 services.AddSqlBridgeInterceptor<AuditInterceptor>();       // or built by the container
 ```
 
-`CommandContext` carries `CommandText`, `CommandType`, `Duration`, `Result`, `RowsAffected` and a `Properties`
-bag for passing state between interceptors. Its `Command` is a description of the call with no connection:
-changing it does not change the query that runs. Interceptors do not run for calls made through
+`CommandContext` carries `CommandText`, `Parameters`, `CommandType`, `Duration`, `Result`, `RowsAffected` and a `Properties`
+bag for passing state between interceptors. You never need a `SqlCommand`: interceptors see the text and
+parameters of the call, and a short-circuit result replaces the query. Interceptors do not run for calls made through
 `StoredProcedure(...)`, `BulkCopy(...)` or inside a transaction.
 
 ## Custom row mappers

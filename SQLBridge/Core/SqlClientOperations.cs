@@ -57,7 +57,7 @@ namespace SQLBridge {
 
         protected override async Task<T> RunAsync<T>(SqlCall call,
             Func<SqlCall, CancellationToken, Task<T>> operation, CancellationToken ct) {
-            // Interceptors get a command to inspect before the real one runs
+            // Interceptors see the command text and parameters before the real command runs
             if (_interceptorPipeline.HasInterceptors) {
                 return await RunWithInterceptorsAsync(call, operation, ct);
             }
@@ -82,18 +82,10 @@ namespace SQLBridge {
             Func<SqlCall, CancellationToken, Task<T>> operation, CancellationToken ct) {
             var stopwatch = Stopwatch.StartNew();
 
-            // Not attached to a connection, so an interceptor can short-circuit without touching the database
-            await using var command = new SqlCommand(call.CommandText) {
-                CommandType = call.CommandType,
-                CommandTimeout = Options.DefaultCommandTimeout
-            };
-
             try {
                 var result = await _interceptorPipeline.ExecuteAsync(
                     new PendingRun<T>(call, operation),
-                    command,
-                    call.CommandText,
-                    call.CommandTypeName,
+                    call,
                     RetryAsync,
                     ct);
 
@@ -109,7 +101,7 @@ namespace SQLBridge {
             }
         }
 
-        private async Task<T> RetryAsync<T>(PendingRun<T> run, SqlCommand command, CancellationToken token) {
+        private async Task<T> RetryAsync<T>(PendingRun<T> run, CancellationToken token) {
             return await _retryPolicy.ExecuteAsync(run.Call, run.Operation, token);
         }
 

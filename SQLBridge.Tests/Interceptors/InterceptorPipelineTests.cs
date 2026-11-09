@@ -1,4 +1,3 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace SQLBridge.Tests {
@@ -22,6 +21,17 @@ namespace SQLBridge.Tests {
             public override ValueTask AfterExecuteAsync(CommandContext context, CancellationToken ct = default) {
                 _log.Add($"after:{_name}");
                 return base.AfterExecuteAsync(context, ct);
+            }
+
+        }
+
+        private sealed class ParameterCapturingInterceptor : QueryInterceptorBase {
+
+            public CommandContext? Seen { get; private set; }
+
+            public override ValueTask<InterceptResult?> BeforeExecuteAsync(CommandContext context, CancellationToken ct = default) {
+                Seen = context;
+                return base.BeforeExecuteAsync(context, ct);
             }
 
         }
@@ -54,16 +64,16 @@ namespace SQLBridge.Tests {
             return new InterceptorPipeline(interceptors, NullLogger<InterceptorPipeline>.Instance);
         }
 
-        private static Task<int> ReturnOneAsync(int state, SqlCommand command, CancellationToken ct) {
+        private static Task<int> ReturnOneAsync(int state, CancellationToken ct) {
             return Task.FromResult(1);
         }
 
-        private static Task<string> ReadFromDatabaseAsync(ExecutionTracker state, SqlCommand command, CancellationToken ct) {
+        private static Task<string> ReadFromDatabaseAsync(ExecutionTracker state, CancellationToken ct) {
             state.DatabaseWasCalled = true;
             return Task.FromResult("from database");
         }
 
-        private static Task<string> FailAsync(int state, SqlCommand command, CancellationToken ct) {
+        private static Task<string> FailAsync(int state, CancellationToken ct) {
             throw new InvalidOperationException("boom");
         }
 
@@ -71,21 +81,35 @@ namespace SQLBridge.Tests {
         public async Task ExecuteAsync_RunsBeforeInOrderAndAfterInReverse() {
             var log = new List<string>();
             var pipeline = CreatePipeline(new RecordingInterceptor("A", log), new RecordingInterceptor("B", log));
-            using var command = new SqlCommand();
+            var call = SqlCall.From("usp_GET_Policy", null);
 
-            await pipeline.ExecuteAsync(0, command, "usp_GET_Policy", "StoredProcedure", ReturnOneAsync, CancellationToken.None);
+            await pipeline.ExecuteAsync(0, call, ReturnOneAsync, CancellationToken.None);
 
             Assert.Equal(["before:A", "before:B", "after:B", "after:A"], log);
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_InterceptorSeesTextTypeAndParameters() {
+            var interceptor = new ParameterCapturingInterceptor();
+            var pipeline = CreatePipeline(interceptor);
+            var parameters = new { PolicyId = 1 };
+            var call = SqlCall.From("usp_GET_Policy", parameters);
+
+            await pipeline.ExecuteAsync(0, call, ReturnOneAsync, CancellationToken.None);
+
+            Assert.NotNull(interceptor.Seen);
+            Assert.Equal("usp_GET_Policy", interceptor.Seen.CommandText);
+            Assert.Equal("StoredProcedure", interceptor.Seen.CommandType);
+            Assert.Same(parameters, interceptor.Seen.Parameters);
         }
 
         [Fact]
         public async Task ExecuteAsync_ShortCircuitSkipsTheDatabase() {
             var pipeline = CreatePipeline(new ShortCircuitInterceptor());
             var tracker = new ExecutionTracker();
-            using var command = new SqlCommand();
+            var call = SqlCall.From("usp_GET_Policy", null);
 
-            var result = await pipeline.ExecuteAsync(tracker, command, "usp_GET_Policy", "StoredProcedure",
-                ReadFromDatabaseAsync, CancellationToken.None);
+            var result = await pipeline.ExecuteAsync(tracker, call, ReadFromDatabaseAsync, CancellationToken.None);
 
             Assert.Equal("cached", result);
             Assert.False(tracker.DatabaseWasCalled);
@@ -94,10 +118,9 @@ namespace SQLBridge.Tests {
         [Fact]
         public async Task ExecuteAsync_InterceptorCanSuppressErrorWithFallback() {
             var pipeline = CreatePipeline(new SuppressingInterceptor());
-            using var command = new SqlCommand();
+            var call = SqlCall.From("usp_GET_Policy", null);
 
-            var result = await pipeline.ExecuteAsync(0, command, "usp_GET_Policy", "StoredProcedure",
-                FailAsync, CancellationToken.None);
+            var result = await pipeline.ExecuteAsync(0, call, FailAsync, CancellationToken.None);
 
             Assert.Equal("fallback", result);
         }
@@ -105,12 +128,11 @@ namespace SQLBridge.Tests {
         [Fact]
         public async Task ExecuteAsync_ErrorPropagatesWhenNotSuppressed() {
             var pipeline = CreatePipeline(new RecordingInterceptor("A", new List<string>()));
-            using var command = new SqlCommand();
+            var call = SqlCall.From("usp_GET_Policy", null);
             InvalidOperationException? caught = null;
 
             try {
-                await pipeline.ExecuteAsync(0, command, "usp_GET_Policy", "StoredProcedure",
-                    FailAsync, CancellationToken.None);
+                await pipeline.ExecuteAsync(0, call, FailAsync, CancellationToken.None);
             } catch (InvalidOperationException ex) {
                 caught = ex;
             }

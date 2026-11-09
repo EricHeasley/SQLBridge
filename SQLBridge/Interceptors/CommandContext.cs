@@ -1,17 +1,15 @@
-using Microsoft.Data.SqlClient;
-
 namespace SQLBridge {
     /// <summary>
     /// Context object passed through the interceptor pipeline.
-    /// Provides access to the command, timing, results, and a property bag for passing data between interceptors.
+    /// Provides access to the command text, parameters, timing, results, and a property bag for passing data between interceptors.
     /// </summary>
     public sealed class CommandContext {
 
-        /// <summary>The SQL command that will be / was executed.</summary>
-        public SqlCommand Command { get; set; } = null!;
-
         /// <summary>The original command text (proc name or SQL).</summary>
         public string CommandText { get; init; } = string.Empty;
+
+        /// <summary>The parameters the caller passed (anonymous object, dictionary or SqlParameter array), or null.</summary>
+        public object? Parameters { get; init; }
 
         /// <summary>"StoredProcedure" or "Text".</summary>
         public string CommandType { get; init; } = string.Empty;
